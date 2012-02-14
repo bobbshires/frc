@@ -53,13 +53,17 @@ public:
 	{	
 		Threshold redThreshold(25, 255, 0, 45, 0, 47);
 		//Threshold greenThreshold(0, 7, 0, 255, 86, 169);
-		Threshold greenThreshold(0, 10, 0, 255, 31, 110);
+		//Threshold greenThreshold(0, 10, 0, 255, 31, 110);
+		Threshold greenThreshold(0, 10, 56, 255, 0, 29);
 		ParticleFilterCriteria2 criteria[] = {
 											{IMAQ_MT_BOUNDING_RECT_WIDTH, 30, 400, false, false},
 											{IMAQ_MT_BOUNDING_RECT_HEIGHT, 40, 400, false, false}
 		};
 		
-		//DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
+		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
+		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
+		dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
+		dsLCD->UpdateLCD();
 		
 		while (IsAutonomous() && IsEnabled()) {
             /**
@@ -68,22 +72,7 @@ public:
              * level directory in the flash memory on the cRIO. The file name in this case is "10ft2.jpg"
              * 
              */
-	
-			//AxisCamera& camera = AxisCamera::GetInstance("10.3.84.11");
-			
-			/*
-			ColorImage *test;
-			camera.GetImage(test);
-			dsLCD->Printf(DriverStationLCD::kUser_Line1, 1, "Hello World");
-		    dsLCD->UpdateLCD();
-			test->Write("test-384.jpg");
-			*/
-			
 			ColorImage *image;
-			//image = new RGBImage("/10ft2.jpg");		// get the sample image from the cRIO flash
-			//image = new RGBImage("/20ft2.jpg");
-			//image = new RGBImage("/30ft2.jpg");
-			//image = new ColorImage(IMAQ_IMAGE_RGB);
 			image = new RGBImage();
 			camera.GetImage(image);
 			//image->Write("test-384.jpg");
@@ -94,19 +83,23 @@ public:
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-			//thresholdImage->Write("test-384-rect.bmp");
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
-			//filteredImage->Write("test-filtered.jpg");
+			//filteredImage->Write("test-384-filtered.bmp");
 			
 			//double degs = 27;
 			double degs = 24;
-			double pi = 3.14159;
+			double degsVert = 20;
+			double pi = 3.141592653589;
+			double rads = pi / (double)180;
 			double tapeWidth = 2;
+			double tapeHeight = 1.5;
 			
 			for (unsigned i = 0; i < reports->size(); i++) {
 				ParticleAnalysisReport *r = &(reports->at(i));
 				double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
-				double distance = (double)(fov / (double)2) / tan(degs * (pi / (double)180));
+				double distance = (double)(fov / (double)2) / tan(degs * rads);
+				double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
+				double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
 				printf("center_mass_x: %d\n", r->center_mass_x);
 				printf("center_mass_y: %d\n", r->center_mass_y);
 				printf("percent: %f\n", r->particleToImagePercent);
@@ -118,15 +111,14 @@ public:
 				printf("rect top: %d\n", r->boundingRect.top);
 				printf("rect left: %d\n", r->boundingRect.left);
 				printf("fov: %f\n", fov);
+				printf("fovVert: %f\n", fovVert);
 				printf("distance: %f\n", distance);
-				printf("tan: %f\n", tan(27*(3.14159 / 180)));
+				printf("distanceVert: %f\n", distanceVert);
+				//printf("tan: %f\n", tan(27*(3.14159 / 180)));
 				printf("\n");
-				/*
-				dsLCD->Printf(DriverStationLCD::kUser_Line1, 1, "particle: %d  center_mass_x: %d\n", i, r->center_mass_x);
-				dsLCD->Printf(DriverStationLCD::kUser_Line2, 1, "center_mass_x: %d\n", r->center_mass_x);
-				dsLCD->Printf(DriverStationLCD::kUser_Line3, 1, "percent: %f\n", r->particleToImagePercent);
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "distance: %f", distance);
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "distanceVert: %f", distanceVert);
 				dsLCD->UpdateLCD();
-				*/
 			}
 			printf("\n");
 			
@@ -142,7 +134,7 @@ public:
 			delete thresholdImage;
 			delete image;
 			
-			Wait(5);
+			Wait(1);
 		}
 	}
 
