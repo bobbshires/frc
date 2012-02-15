@@ -244,12 +244,12 @@
         </mapAttribute>
     </attributes>
     <buildtargets>
-        <buildtarget buildtool="Linker" name="SimpleTemplate" passed="false" targetname="SimpleTemplate">
+        <buildtarget buildtool="Linker" name="Sparky" passed="false" targetname="Sparky">
             <contents>
-                <buildtargetreference name="/Sparky/SimpleTemplate_partialImage"/>
+                <buildtargetreference name="/Sparky/Sparky_partialImage"/>
             </contents>
         </buildtarget>
-        <buildtarget buildtool="Partial Image Linker" name="SimpleTemplate_partialImage" passed="true" targetname="SimpleTemplate_partialImage">
+        <buildtarget buildtool="Partial Image Linker" name="Sparky_partialImage" passed="true" targetname="Sparky_partialImage">
             <contents>
                 <folder name="/Sparky" recursive="true"/>
             </contents>
