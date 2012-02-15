@@ -32,6 +32,7 @@ public:
 	 */
 	void Autonomous(void)
 	{	
+		printf("Autonomous: start\n");
 		int count = 0;
 		Task targeting("targeting", (FUNCPTR)Targeting);
 		targeting.Start();
@@ -40,6 +41,7 @@ public:
 			Wait(1);
 		}
 		targeting.Stop();
+		printf("Autonomous: stop\n");
 	}
 
 	/**
@@ -47,6 +49,7 @@ public:
 	 */
 	void OperatorControl(void)
 	{
+		printf("OperatorControl: start\n");
 		Task targeting("targeting", (FUNCPTR)Targeting);
 		targeting.Start();
 		myRobot.SetSafetyEnabled(true);
@@ -62,6 +65,7 @@ public:
 			Wait(0.005);				// wait for a motor update time
 		}
 		targeting.Stop();
+		printf("OperatorControl: stop\n");
 	}
 	
 	/**
@@ -69,7 +73,7 @@ public:
 	 */
 	static int Targeting(void)
 	{
-		printf("Targeting: start");
+		printf("Targeting: start\n");
 		//Threshold greenThreshold(0, 7, 0, 255, 86, 169);
 		//Threshold greenThreshold(0, 10, 0, 255, 31, 110);
 		Threshold greenThreshold(0, 10, 56, 255, 0, 29);
@@ -164,7 +168,7 @@ public:
 			
 			Wait(0.01);
 		}
-		printf("Targeting: stop");
+		printf("Targeting: stop\n");
 		return 0;
 	}
 };
