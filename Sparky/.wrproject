@@ -246,10 +246,10 @@
     <buildtargets>
         <buildtarget buildtool="Linker" name="Sparky" passed="false" targetname="Sparky">
             <contents>
-                <buildtargetreference name="/Sparky/Sparky_partialImage"/>
+                <folder name="/Sparky" recursive="true"/>
             </contents>
         </buildtarget>
-        <buildtarget buildtool="Partial Image Linker" name="Sparky_partialImage" passed="true" targetname="Sparky_partialImage">
+        <buildtarget buildtool="Partial Image Linker" name="Sparky_partialImage" passed="false" targetname="Sparky_partialImage">
             <contents>
                 <folder name="/Sparky" recursive="true"/>
             </contents>

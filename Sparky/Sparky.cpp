@@ -78,10 +78,9 @@ public:
 		//Threshold greenThreshold(0, 10, 0, 255, 31, 110);
 		Threshold greenThreshold(0, 10, 56, 255, 0, 29);
 		ParticleFilterCriteria2 criteria[] = {
-											{IMAQ_MT_BOUNDING_RECT_WIDTH, 30, 400, false, false},
-											{IMAQ_MT_BOUNDING_RECT_HEIGHT, 40, 400, false, false}
+			{IMAQ_MT_BOUNDING_RECT_WIDTH, 30, 400, false, false},
+			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 40, 400, false, false}
 		};
-		//double degs = 27;
 		double degs = 24;
 		double degsVert = 20;
 		double pi = 3.141592653589;
@@ -101,16 +100,12 @@ public:
 			double d, dv;
 			image = new RGBImage();
 			camera.GetImage(image);
-			//image->Write("test-384.jpg");
 	
-			//BinaryImage *thresholdImage = image->ThresholdRGB(redThreshold);
 			BinaryImage *thresholdImage = image->ThresholdRGB(greenThreshold);	// get just the red target pixels
-			//thresholdImage->Write("test-384-thresh.bmp");
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
-			//filteredImage->Write("test-384-filtered.bmp");
 					
 			for (unsigned i = 0; i < reports->size(); i++) {
 				ParticleAnalysisReport *r = &(reports->at(i));
@@ -150,7 +145,7 @@ public:
 				dsLCD->UpdateLCD();
 			}
 			else {
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** NO TARGET ***");
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** TARGET NOT FOUND ***");
 				dsLCD->UpdateLCD();
 			}
 					
