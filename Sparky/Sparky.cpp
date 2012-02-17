@@ -176,7 +176,9 @@ public:
 			delete convexHullImage;
 			delete bigObjectsImage;
 			delete thresholdImage;
-			delete image;		
+			delete image;
+			
+			target = NULL;
 			
 			Wait(0.01);
 		}
