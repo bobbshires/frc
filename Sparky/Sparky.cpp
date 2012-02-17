@@ -12,18 +12,20 @@ static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
 class Sparky : public SimpleRobot
 {
 	RobotDrive myRobot; // robot drive system
-	Joystick stick; // only joystick
+	Joystick stick1;
+	Joystick stick2;
 
 public:
 	Sparky(void):
 		myRobot(1, 2),
-		stick(1)
+		stick1(1),
+		stick2(2)
 	{
 		myRobot.SetExpiration(0.1);
 		myRobot.SetSafetyEnabled(false);
 		camera.WriteResolution(AxisCameraParams::kResolution_640x480);
 		camera.WriteBrightness(0);
-		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Automatic);
+		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
 		Wait(3);
 	}
 
@@ -37,8 +39,11 @@ public:
 		Task targeting("targeting", (FUNCPTR)Targeting);
 		targeting.Start();
 		while (IsAutonomous() && IsEnabled()) {
-			printf("count: %d\n", count++);
-			Wait(1);
+			if(count % 10 == 0) {
+				printf("count: %d\n", count++);
+			}
+			myRobot.Drive(0, 0);
+			Wait(0.01);
 		}
 		targeting.Stop();
 		printf("Autonomous: stop\n");
@@ -55,8 +60,8 @@ public:
 		myRobot.SetSafetyEnabled(true);
 		while (IsOperatorControl())
 		{
-			if (stick.GetTrigger()) {
-				myRobot.ArcadeDrive(stick);
+			if (stick1.GetTrigger()) {
+				myRobot.ArcadeDrive(stick1);
 			}
 			else {
 				myRobot.Drive(0, 0);
@@ -74,9 +79,8 @@ public:
 	static int Targeting(void)
 	{
 		printf("Targeting: start\n");
-		//Threshold greenThreshold(0, 7, 0, 255, 86, 169);
-		//Threshold greenThreshold(0, 10, 0, 255, 31, 110);
-		Threshold greenThreshold(0, 10, 56, 255, 0, 29);
+		//Threshold greenThreshold(0, 52, 60, 255, 0, 88);  // 6ft
+		Threshold greenThreshold(0, 78, 81, 255, 5, 136); // 30ft
 		ParticleFilterCriteria2 criteria[] = {
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 30, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 40, 400, false, false}
@@ -88,6 +92,7 @@ public:
 		double tapeWidth = 2;
 		double tapeHeight = 1.5;
 		ColorImage *image;
+		int loopCount = 0;
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -100,11 +105,24 @@ public:
 			double d, dv;
 			image = new RGBImage();
 			camera.GetImage(image);
+			
+			if(!loopCount) {
+				image->Write("sparky.jpg");
+			}
 	
 			BinaryImage *thresholdImage = image->ThresholdRGB(greenThreshold);	// get just the red target pixels
+			if(!loopCount) {
+				thresholdImage->Write("sparky-Thresh.bmp");
+			}
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
+			if(!loopCount) {
+				convexHullImage->Write("sparky-convexHull.bmp");
+			}
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
+			if(!loopCount) {
+				filteredImage->Write("sparky-filtered.bmp");
+			}
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
 					
 			for (unsigned i = 0; i < reports->size(); i++) {
@@ -146,6 +164,8 @@ public:
 			}
 			else {
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** TARGET NOT FOUND ***");
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
 				dsLCD->UpdateLCD();
 			}
 					
@@ -161,10 +181,11 @@ public:
 			delete thresholdImage;
 			delete image;		
 			
+			loopCount++;
 			Wait(0.01);
 		}
 		printf("Targeting: stop\n");
-		return 0;
+		return 1;
 	}
 };
 
