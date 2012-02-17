@@ -117,6 +117,9 @@ public:
 				thresholdImage->Write("sparky-Thresh.bmp");
 			}
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
+			if(!loopCount) {
+				bigObjectsImage->Write("sparky-bigObjects.bmp");
+			}
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
 			if(!loopCount) {
 				convexHullImage->Write("sparky-convexHull.bmp");
