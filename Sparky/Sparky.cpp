@@ -14,18 +14,22 @@ class Sparky : public SimpleRobot
 	RobotDrive myRobot; // robot drive system
 	Joystick stick1;
 	Joystick stick2;
+	Task targeting;
 
 public:
 	Sparky(void):
 		myRobot(1, 2),
 		stick1(1),
-		stick2(2)
+		stick2(2),
+		targeting("targeting", (FUNCPTR)Targeting)
 	{
 		myRobot.SetExpiration(0.1);
 		myRobot.SetSafetyEnabled(false);
 		camera.WriteResolution(AxisCameraParams::kResolution_640x480);
-		camera.WriteBrightness(0);
 		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
+		camera.WriteColorLevel(100);
+	    camera.WriteCompression(30);
+		camera.WriteBrightness(0);
 		Wait(3);
 	}
 
@@ -36,7 +40,6 @@ public:
 	{	
 		printf("Autonomous: start\n");
 		int count = 0;
-		Task targeting("targeting", (FUNCPTR)Targeting);
 		targeting.Start();
 		while (IsAutonomous() && IsEnabled()) {
 			if(count % 10 == 0) {
@@ -55,7 +58,6 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
-		Task targeting("targeting", (FUNCPTR)Targeting);
 		targeting.Start();
 		myRobot.SetSafetyEnabled(true);
 		while (IsOperatorControl())
