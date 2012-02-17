@@ -95,6 +95,8 @@ public:
 		double tapeHeight = 1.5;
 		ColorImage *image;
 		int loopCount = 0;
+		ParticleAnalysisReport *target = NULL;
+		double d, dv;
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -103,30 +105,20 @@ public:
 		dsLCD->UpdateLCD();
 
 		while(true) {
-			ParticleAnalysisReport *target = NULL;
-			double d, dv;
 			image = new RGBImage();
 			camera.GetImage(image);
 			
-			if(!loopCount) {
-				image->Write("sparky.jpg");
-			}
-	
 			BinaryImage *thresholdImage = image->ThresholdRGB(greenThreshold);	// get just the red target pixels
-			if(!loopCount) {
-				thresholdImage->Write("sparky-Thresh.bmp");
-			}
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
-			if(!loopCount) {
-				bigObjectsImage->Write("sparky-bigObjects.bmp");
-			}
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
-			if(!loopCount) {
-				convexHullImage->Write("sparky-convexHull.bmp");
-			}
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
 			if(!loopCount) {
+				image->Write("sparky.jpg");
+				thresholdImage->Write("sparky-Thresh.bmp");
+				bigObjectsImage->Write("sparky-bigObjects.bmp");
+				convexHullImage->Write("sparky-convexHull.bmp");
 				filteredImage->Write("sparky-filtered.bmp");
+				loopCount++;
 			}
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
 					
@@ -186,7 +178,6 @@ public:
 			delete thresholdImage;
 			delete image;		
 			
-			loopCount++;
 			Wait(0.01);
 		}
 		printf("Targeting: stop\n");
