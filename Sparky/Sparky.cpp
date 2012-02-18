@@ -103,7 +103,11 @@ public:
 		//Threshold greenThreshold(21, 78, 76, 255, 0, 88);
 		//Threshold greenThreshold(0, 158, 123, 255, 0, 160); // night
 		//Threshold greenThreshold(107, 189, 150, 255, 68, 167); // day
-		Threshold dayClose(78, 210, 184, 255, 0, 190); // day close
+		//Threshold dayClose(78, 210, 184, 255, 0, 190); // day close
+		vector<Threshold> thresholds;
+		thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160));
+		thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167));
+		thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190));
 		ParticleFilterCriteria2 criteria[] = {
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
@@ -115,12 +119,11 @@ public:
 		double tapeWidth = 2;
 		double tapeHeight = 1.5;
 		ColorImage *image;
-		int loopCount = 0;
+		//int loopCount = 0;
 		ParticleAnalysisReport *target = NULL;
 		double d, dv;
 		double lastDist = 0;
 		double distCount = 0;
-		
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -129,10 +132,144 @@ public:
 		dsLCD->UpdateLCD();
 
 		while(true) {
+			printf("\n\n Beginning of while. \n\n");
 			image = new RGBImage();
 			camera.GetImage(image);
 			
-			BinaryImage *thresholdImage = image->ThresholdRGB(dayClose);	// get just the red target pixels
+			//BinaryImage *thresholdImage = image->ThresholdRGB(thresholds.at(2));	// get just the red target pixels
+			
+			for(unsigned int k = 0; k < thresholds.size(); k++)
+			{
+				BinaryImage *thresholdImage = image->ThresholdRGB(thresholds.at(k));
+				BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
+				BinaryImage *bigObjectsImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
+				BinaryImage *filteredImage = bigObjectsImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
+				vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
+
+				/*
+				if(image) image->Write("sparky.jpg");
+				if(thresholdImage) thresholdImage->Write("sparky-Thresh.bmp");
+				if(bigObjectsImage) bigObjectsImage->Write("sparky-bigObjects.bmp");
+				if(convexHullImage) convexHullImage->Write("sparky-convexHull.bmp");
+				if(filteredImage) filteredImage->Write("sparky-filtered.bmp");
+				return 0;
+				*/
+				
+				if(reports->size())
+				{
+					for (unsigned i = 0; i < reports->size(); i++) {
+						ParticleAnalysisReport *r = &(reports->at(i));
+						double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
+						double distance = (double)(fov / (double)2) / tan(degs * rads);
+						double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
+						double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
+						// get the topmost basket
+						if(!target || target->center_mass_y < r->center_mass_y) {
+							target = r;
+							d = distance;
+							dv = distanceVert;
+							printf("*** Top Basket ***\n");
+						}
+						
+						printf("center_mass_x: %d\n", r->center_mass_x);
+						printf("center_mass_y: %d\n", r->center_mass_y);
+						printf("percent: %f\n", r->particleToImagePercent);
+						printf("area: %f\n", r->particleArea);
+						printf("image width: %d\n", r->imageWidth);
+						printf("image height: %d\n", r->imageHeight);
+						printf("rect height: %d\n", r->boundingRect.height);
+						printf("rect width: %d\n", r->boundingRect.width);
+						printf("rect top: %d\n", r->boundingRect.top);
+						printf("rect left: %d\n", r->boundingRect.left);
+						printf("fov: %f\n", fov);
+						printf("fovVert: %f\n", fovVert);
+						printf("distance: %f\n", distance);
+						printf("distanceVert: %f\n", distanceVert);
+						printf("\n");
+					}
+					printf("\n");
+					
+					if(!distCount)
+					{
+						distCount++;
+						lastDist = dv;
+					}
+					else
+					{	
+						if(lastDist == dv)
+						{
+							distCount++;
+						}
+						else if(lastDist < dv && dv - lastDist < 1)
+						{
+							distCount++;	
+						}
+						else if(lastDist > dv && lastDist - dv < 1)
+						{
+							distCount++;
+						}
+						else
+						{
+							distCount = 0;
+						}
+						
+						lastDist = dv;
+					}
+					
+					if(distCount > 3) {
+						//dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
+						//dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "distance: %f", d);
+						//dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "distanceVert: %f", dv);
+						dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "target: %f", dv);
+						if(target->center_mass_x == 320 ||
+						   (target->center_mass_x > 320 && target->center_mass_x - 320 < 40) ||
+						   (target->center_mass_x < 320 && 320 - target->center_mass_x < 40))
+						{
+							dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "CENTER");
+						}
+						else if((target->center_mass_x > 320 && target->center_mass_x - 320 > 40))
+						{
+							dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "RIGHT");
+						}
+						else if ((target->center_mass_x < 320 && 320 - target->center_mass_x > 40))
+						{
+							dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "LEFT");
+						}
+						dsLCD->UpdateLCD();
+					}
+					else {
+						dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** TARGET NOT FOUND ***");
+						dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
+						dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
+						dsLCD->UpdateLCD();
+					}
+					
+					target = NULL;
+					dv = 0;
+					
+					delete reports;
+					delete filteredImage;
+					delete convexHullImage;
+					delete bigObjectsImage;
+					delete thresholdImage;
+					break;
+				}
+				else
+				{
+					printf("No particles found.\n");
+				}
+				
+				delete reports;
+			    delete filteredImage;
+				delete convexHullImage;
+				delete bigObjectsImage;
+				delete thresholdImage;
+			}
+			delete image;
+			Wait(0.1);
+		}
+		printf("Targeting: stop\n");
+		return 1;
 			
 			/* orignal 
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
@@ -146,11 +283,8 @@ public:
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
 			*/
 			// experimental
-			BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
-			BinaryImage *bigObjectsImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-			BinaryImage *filteredImage = bigObjectsImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
 
-			///*
+			/*
 			if(!loopCount && camera.IsFreshImage()) {
 				if(image) image->Write("sparky.jpg");
 				if(thresholdImage) thresholdImage->Write("sparky-Thresh.bmp");
@@ -160,114 +294,6 @@ public:
 				loopCount++;
 			}
 			//*/
-			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
-					
-			for (unsigned i = 0; i < reports->size(); i++) {
-				ParticleAnalysisReport *r = &(reports->at(i));
-				double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
-				double distance = (double)(fov / (double)2) / tan(degs * rads);
-				double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
-				double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
-				// get the topmost basket
-				if(!target || target->center_mass_y < r->center_mass_y) {
-					target = r;
-					d = distance;
-					dv = distanceVert;
-					printf("*** Top Basket ***\n");
-				}
-				
-				printf("center_mass_x: %d\n", r->center_mass_x);
-				printf("center_mass_y: %d\n", r->center_mass_y);
-				printf("percent: %f\n", r->particleToImagePercent);
-				printf("area: %f\n", r->particleArea);
-				printf("image width: %d\n", r->imageWidth);
-				printf("image height: %d\n", r->imageHeight);
-				printf("rect height: %d\n", r->boundingRect.height);
-				printf("rect width: %d\n", r->boundingRect.width);
-				printf("rect top: %d\n", r->boundingRect.top);
-				printf("rect left: %d\n", r->boundingRect.left);
-				printf("fov: %f\n", fov);
-				printf("fovVert: %f\n", fovVert);
-				printf("distance: %f\n", distance);
-				printf("distanceVert: %f\n", distanceVert);
-				printf("\n");
-			}
-			printf("\n");
-			
-			if(!distCount)
-			{
-				distCount++;
-				lastDist = dv;
-			}
-			else
-			{	
-				if(lastDist == dv)
-				{
-					distCount++;
-				}
-				else if(lastDist < dv && dv - lastDist < 1)
-				{
-					distCount++;	
-				}
-				else if(lastDist > dv && lastDist - dv < 1)
-				{
-					distCount++;
-				}
-				else
-				{
-					distCount = 0;
-				}
-				
-				lastDist = dv;
-			}
-			
-			if(distCount > 3) {
-				//dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
-				//dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "distance: %f", d);
-				//dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "distanceVert: %f", dv);
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "target: %f", dv);
-				if(target->center_mass_x == 320 ||
-				   (target->center_mass_x > 320 && target->center_mass_x - 320 < 40) ||
-				   (target->center_mass_x < 320 && 320 - target->center_mass_x < 40))
-				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "CENTER");
-				}
-				else if((target->center_mass_x > 320 && target->center_mass_x - 320 > 40))
-				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "RIGHT");
-				}
-				else if ((target->center_mass_x < 320 && 320 - target->center_mass_x > 40))
-				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "LEFT");
-				}
-				dsLCD->UpdateLCD();
-			}
-			else {
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** TARGET NOT FOUND ***");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
-				dsLCD->UpdateLCD();
-			}
-					
-			if(!reports->size()){
-				printf("No particles found.\n");
-			}
-			
-			// be sure to delete images after using them
-			delete reports;
-			delete filteredImage;
-			delete convexHullImage;
-			delete bigObjectsImage;
-			delete thresholdImage;
-			delete image;
-			
-			target = NULL;
-			dv = 0;
-			
-			Wait(0.1);
-		}
-		printf("Targeting: stop\n");
-		return 1;
 	}
 };
 
