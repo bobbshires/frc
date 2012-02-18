@@ -136,7 +136,7 @@ public:
 			*/
 			BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-			///*
+			/*
 			if(!loopCount && camera.IsFreshImage()) {
 				image->Write("sparky.jpg");
 				thresholdImage->Write("sparky-Thresh.bmp");
@@ -145,7 +145,7 @@ public:
 				filteredImage->Write("sparky-filtered.bmp");
 				loopCount++;
 			}
-			//*/
+			*/
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
 					
 			for (unsigned i = 0; i < reports->size(); i++) {
