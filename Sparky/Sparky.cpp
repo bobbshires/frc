@@ -15,22 +15,27 @@ class Sparky : public SimpleRobot
 	Joystick stick1;
 	Joystick stick2;
 	Task targeting;
+	Jaguar conveyor;
 
 public:
 	Sparky(void):
 		myRobot(1, 2),
 		stick1(1),
 		stick2(2),
-		targeting("targeting", (FUNCPTR)Targeting)
+		targeting("targeting", (FUNCPTR)Targeting),
+		conveyor(3) // Not a definite port, just putting in pre-code
 	{
+		printf("Sparky: start\n");
 		myRobot.SetExpiration(0.1);
 		myRobot.SetSafetyEnabled(false);
 		camera.WriteResolution(AxisCameraParams::kResolution_640x480);
 		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
+		camera.WriteExposureControl(AxisCameraParams::kExposure_Hold);
 		camera.WriteColorLevel(100);
 	    camera.WriteCompression(30);
-		camera.WriteBrightness(0);
-		Wait(3);
+		camera.WriteBrightness(30);
+		Wait(5);
+		printf("Sparky: done\n");
 	}
 
 	/**
@@ -43,9 +48,10 @@ public:
 		targeting.Start();
 		while (IsAutonomous() && IsEnabled()) {
 			if(count % 10 == 0) {
-				printf("count: %d\n", count++);
+				printf("count: %d\n", count);
 			}
 			myRobot.Drive(0, 0);
+			count++;
 			Wait(0.01);
 		}
 		targeting.Stop();
@@ -60,13 +66,24 @@ public:
 		printf("OperatorControl: start\n");
 		targeting.Start();
 		myRobot.SetSafetyEnabled(true);
-		while (IsOperatorControl())
+		while (IsOperatorControl() && IsEnabled())
 		{
-			if (stick1.GetTrigger()) {
+			if(stick2.GetTrigger() && !stick1.GetTrigger())
+			{
 				myRobot.ArcadeDrive(stick1);
 			}
-			else {
+			else if(stick1.GetTrigger() && stick2.GetTrigger())
+			{
+				myRobot.TankDrive(stick1, stick2);
+			}
+			else if(stick1.GetRawButton(2))
+			{
+				conveyor.SetSpeed(1);
+			}
+			else
+			{
 				myRobot.Drive(0, 0);
+				conveyor.SetSpeed(0);
 			}
 			
 			Wait(0.005);				// wait for a motor update time
@@ -82,10 +99,12 @@ public:
 	{
 		printf("Targeting: start\n");
 		//Threshold greenThreshold(0, 52, 60, 255, 0, 88);  // 6ft
-		Threshold greenThreshold(0, 78, 81, 255, 5, 136); // 30ft
+		//Threshold greenThreshold(0, 78, 81, 255, 5, 136); // 30ft
+		//Threshold greenThreshold(21, 78, 76, 255, 0, 88);
+		Threshold greenThreshold(0, 158, 123, 255, 0, 160);
 		ParticleFilterCriteria2 criteria[] = {
-			{IMAQ_MT_BOUNDING_RECT_WIDTH, 30, 400, false, false},
-			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 40, 400, false, false}
+			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
+			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
 		};
 		double degs = 24;
 		double degsVert = 20;
@@ -97,6 +116,8 @@ public:
 		int loopCount = 0;
 		ParticleAnalysisReport *target = NULL;
 		double d, dv;
+		double lastDist = 0;
+		double distCount = 0;
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -109,17 +130,22 @@ public:
 			camera.GetImage(image);
 			
 			BinaryImage *thresholdImage = image->ThresholdRGB(greenThreshold);	// get just the red target pixels
+			/*
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
+			*/
+			BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-			if(!loopCount) {
+			///*
+			if(!loopCount && camera.IsFreshImage()) {
 				image->Write("sparky.jpg");
 				thresholdImage->Write("sparky-Thresh.bmp");
-				bigObjectsImage->Write("sparky-bigObjects.bmp");
+				//bigObjectsImage->Write("sparky-bigObjects.bmp");
 				convexHullImage->Write("sparky-convexHull.bmp");
 				filteredImage->Write("sparky-filtered.bmp");
 				loopCount++;
 			}
+			//*/
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
 					
 			for (unsigned i = 0; i < reports->size(); i++) {
@@ -129,7 +155,7 @@ public:
 				double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
 				double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
 				// get the topmost basket
-				if(!target || target->center_mass_y > r->center_mass_y) {
+				if(!target || target->center_mass_y < r->center_mass_y) {
 					target = r;
 					d = distance;
 					dv = distanceVert;
@@ -153,7 +179,40 @@ public:
 			}
 			printf("\n");
 			
-			if(target) {
+			if(!distCount)
+			{
+				distCount++;
+				lastDist = dv;
+			}
+			else
+			{	
+				if(lastDist == dv)
+				{
+					distCount++;
+				}
+				else if(lastDist < dv)
+				{
+					if(dv - lastDist < 1)
+					{
+						distCount++;
+					}	
+				}
+				else if(lastDist > dv)
+				{
+					if(lastDist - dv < 1)
+					{
+						distCount++;
+					}	
+				}
+				else
+				{
+					distCount = 0;
+				}
+				
+				lastDist = dv;
+			}
+			
+			if(distCount > 3) {
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "distance: %f", d);
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "distanceVert: %f", dv);
@@ -174,13 +233,14 @@ public:
 			delete reports;
 			delete filteredImage;
 			delete convexHullImage;
-			delete bigObjectsImage;
+			//delete bigObjectsImage;
 			delete thresholdImage;
 			delete image;
 			
 			target = NULL;
+			dv = 0;
 			
-			Wait(0.01);
+			Wait(0.1);
 		}
 		printf("Targeting: stop\n");
 		return 1;
