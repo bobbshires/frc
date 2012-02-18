@@ -101,7 +101,9 @@ public:
 		//Threshold greenThreshold(0, 52, 60, 255, 0, 88);  // 6ft
 		//Threshold greenThreshold(0, 78, 81, 255, 5, 136); // 30ft
 		//Threshold greenThreshold(21, 78, 76, 255, 0, 88);
-		Threshold greenThreshold(0, 158, 123, 255, 0, 160);
+		//Threshold greenThreshold(0, 158, 123, 255, 0, 160); // night
+		//Threshold greenThreshold(107, 189, 150, 255, 68, 167); // day
+		Threshold dayClose(78, 210, 184, 255, 0, 190); // day close
 		ParticleFilterCriteria2 criteria[] = {
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
@@ -119,6 +121,7 @@ public:
 		double lastDist = 0;
 		double distCount = 0;
 		
+		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
@@ -129,23 +132,34 @@ public:
 			image = new RGBImage();
 			camera.GetImage(image);
 			
-			BinaryImage *thresholdImage = image->ThresholdRGB(greenThreshold);	// get just the red target pixels
-			/*
+			BinaryImage *thresholdImage = image->ThresholdRGB(dayClose);	// get just the red target pixels
+			
+			/* orignal 
 			BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
 			BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
+			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
 			*/
+	
+			// extra crispy
+			/*
 			BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
 			BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-			/*
+			*/
+			// experimental
+			BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
+			BinaryImage *bigObjectsImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
+			BinaryImage *filteredImage = bigObjectsImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
+
+			///*
 			if(!loopCount && camera.IsFreshImage()) {
-				image->Write("sparky.jpg");
-				thresholdImage->Write("sparky-Thresh.bmp");
-				//bigObjectsImage->Write("sparky-bigObjects.bmp");
-				convexHullImage->Write("sparky-convexHull.bmp");
-				filteredImage->Write("sparky-filtered.bmp");
+				if(image) image->Write("sparky.jpg");
+				if(thresholdImage) thresholdImage->Write("sparky-Thresh.bmp");
+				if(bigObjectsImage) bigObjectsImage->Write("sparky-bigObjects.bmp");
+				if(convexHullImage) convexHullImage->Write("sparky-convexHull.bmp");
+				if(filteredImage) filteredImage->Write("sparky-filtered.bmp");
 				loopCount++;
 			}
-			*/
+			//*/
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
 					
 			for (unsigned i = 0; i < reports->size(); i++) {
@@ -161,6 +175,7 @@ public:
 					dv = distanceVert;
 					printf("*** Top Basket ***\n");
 				}
+				
 				printf("center_mass_x: %d\n", r->center_mass_x);
 				printf("center_mass_y: %d\n", r->center_mass_y);
 				printf("percent: %f\n", r->particleToImagePercent);
@@ -190,19 +205,13 @@ public:
 				{
 					distCount++;
 				}
-				else if(lastDist < dv)
+				else if(lastDist < dv && dv - lastDist < 1)
 				{
-					if(dv - lastDist < 1)
-					{
-						distCount++;
-					}	
+					distCount++;	
 				}
-				else if(lastDist > dv)
+				else if(lastDist > dv && lastDist - dv < 1)
 				{
-					if(lastDist - dv < 1)
-					{
-						distCount++;
-					}	
+					distCount++;
 				}
 				else
 				{
@@ -213,9 +222,24 @@ public:
 			}
 			
 			if(distCount > 3) {
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "distance: %f", d);
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "distanceVert: %f", dv);
+				//dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
+				//dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "distance: %f", d);
+				//dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "distanceVert: %f", dv);
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "target: %f", dv);
+				if(target->center_mass_x == 320 ||
+				   (target->center_mass_x > 320 && target->center_mass_x - 320 < 40) ||
+				   (target->center_mass_x < 320 && 320 - target->center_mass_x < 40))
+				{
+					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "CENTER");
+				}
+				else if((target->center_mass_x > 320 && target->center_mass_x - 320 > 40))
+				{
+					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "RIGHT");
+				}
+				else if ((target->center_mass_x < 320 && 320 - target->center_mass_x > 40))
+				{
+					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "LEFT");
+				}
 				dsLCD->UpdateLCD();
 			}
 			else {
@@ -233,7 +257,7 @@ public:
 			delete reports;
 			delete filteredImage;
 			delete convexHullImage;
-			//delete bigObjectsImage;
+			delete bigObjectsImage;
 			delete thresholdImage;
 			delete image;
 			
