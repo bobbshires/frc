@@ -108,16 +108,10 @@ public:
 	static int Targeting(void)
 	{
 		printf("Targeting: start\n");
-		//Threshold greenThreshold(0, 52, 60, 255, 0, 88);  // 6ft
-		//Threshold greenThreshold(0, 78, 81, 255, 5, 136); // 30ft
-		//Threshold greenThreshold(21, 78, 76, 255, 0, 88);
-		//Threshold greenThreshold(0, 158, 123, 255, 0, 160); // night
-		//Threshold greenThreshold(107, 189, 150, 255, 68, 167); // day
-		//Threshold dayClose(78, 210, 184, 255, 0, 190); // day close
 		vector<Threshold> thresholds;
-		thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160));
-		thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167));
-		thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190));
+		thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160)); // night
+		thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167)); // day
+		thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190)); // day close
 		ParticleFilterCriteria2 criteria[] = {
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
