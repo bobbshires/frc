@@ -11,29 +11,35 @@ static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
  */
 class Sparky : public SimpleRobot
 {
-	RobotDrive myRobot; // robot drive system
-	Joystick stick1;
-	Joystick stick2;
+	RobotDrive sparky; // robot drive system
+	Joystick stick1, stick2;
 	Task targeting;
-	Jaguar conveyor;
-	DigitalInput top;
-	DigitalInput middle;
-	DigitalInput bottom;
+	DigitalInput top, middle, bottom;
+	DriverStation *ds;
+	Jaguar arm;
+	Relay floorPickup, shooterLoader;//, reserved;
 
 public:
 	Sparky(void):
-		myRobot(1, 2),
+		sparky(3, 2),
 		stick1(1),
 		stick2(2),
 		targeting("targeting", (FUNCPTR)Targeting),
-		conveyor(3), // Not a definite port, just putting in pre-code
-		top(1),
-		middle(2),
-		bottom(3)
+		top(14),
+		middle(13),
+		bottom(3), // Not used yet.
+		ds(DriverStation::GetInstance()),
+		arm(1),
+		floorPickup(7),
+		shooterLoader(8)/*,
+		reserved(10) // not used yet
+		*/
 	{
 		printf("Sparky: start\n");
-		myRobot.SetExpiration(0.1);
-		myRobot.SetSafetyEnabled(false);
+		sparky.SetExpiration(0.1);
+		sparky.SetSafetyEnabled(false);
+		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
+		//sparky.SetInvertedMotor(RobotDrive::kFrontLeftMotor, true);
 		camera.WriteResolution(AxisCameraParams::kResolution_640x480);
 		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
 		camera.WriteExposureControl(AxisCameraParams::kExposure_Hold);
@@ -48,23 +54,35 @@ public:
 	 * Drive left & right motors for 2 seconds then stop
 	 */
 	void Autonomous(void)
-	{	
+	{
 		printf("Autonomous: start\n");
 		int count = 0;
-		//targeting.Start();
+		sparky.SetSafetyEnabled(false);
+		targeting.Start();
 		while (IsAutonomous() && IsEnabled()) {
+			/*
+			if(ds->GetDigitalIn(1))
+			{
+				printf("Waiting...");
+				Wait(5);
+				printf("Waiting done!");
+			}
+			else
+			{
+				
+			}
+			*/
+			
 			if(count % 100 == 0) {
 				printf("count: %d\n", count);
 			}
-			myRobot.Drive(0, 0);
+			//sparky.Drive(0, 0);
+			//sparky.TankDrive(-1.0, 1.0);
 			count++;
-			printf("top: %d\n", top.Get());
-			printf("middle: %d\n", middle.Get());
-			printf("bottom: %d\n", bottom.Get());
-			//Wait(0.01);
-			Wait(1);
+
+			Wait(0.01);
 		}
-		//targeting.Stop();
+		targeting.Stop();
 		printf("Autonomous: stop\n");
 	}
 
@@ -75,26 +93,56 @@ public:
 	{
 		printf("OperatorControl: start\n");
 		targeting.Start();
-		myRobot.SetSafetyEnabled(true);
+		sparky.SetSafetyEnabled(true);
 		while (IsOperatorControl() && IsEnabled())
 		{
 			if(stick2.GetTrigger() && !stick1.GetTrigger())
 			{
-				myRobot.ArcadeDrive(stick1);
+				sparky.ArcadeDrive(stick2);
 			}
 			else if(stick1.GetTrigger() && stick2.GetTrigger())
 			{
-				myRobot.TankDrive(stick1, stick2);
-			}
-			else if(stick1.GetRawButton(2))
-			{
-				conveyor.SetSpeed(1);
+				sparky.TankDrive(stick1, stick2);
 			}
 			else
 			{
-				myRobot.Drive(0, 0);
-				conveyor.SetSpeed(0);
+				sparky.TankDrive(0.0, 0.0);
 			}
+			
+			if(stick1.GetRawButton(3))
+			{
+				arm.Set(0.5);
+			}
+			else if(stick1.GetRawButton(4))
+			{
+				arm.Set(-0.5);
+			}
+			else
+			{
+				arm.Set(-0.05);
+			}
+			
+			if(stick2.GetRawButton(2))
+			{
+				floorPickup.Set(Relay::kForward);
+				shooterLoader.Set(Relay::kForward);
+			}
+			else if(stick2.GetRawButton(3))
+			{
+				floorPickup.Set(Relay::kReverse);
+				shooterLoader.Set(Relay::kReverse);
+			}
+			else
+			{
+				floorPickup.Set(Relay::kOff);
+				shooterLoader.Set(Relay::kOff);
+			}
+			
+			/*
+			printf("top: %d\n", top.Get());
+			printf("middle: %d\n", middle.Get());
+			printf("bottom: %d\n", bottom.Get());
+			*/
 			
 			Wait(0.005);				// wait for a motor update time
 		}
