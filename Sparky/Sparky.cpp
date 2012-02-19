@@ -16,6 +16,9 @@ class Sparky : public SimpleRobot
 	Joystick stick2;
 	Task targeting;
 	Jaguar conveyor;
+	DigitalInput top;
+	DigitalInput middle;
+	DigitalInput bottom;
 
 public:
 	Sparky(void):
@@ -23,7 +26,10 @@ public:
 		stick1(1),
 		stick2(2),
 		targeting("targeting", (FUNCPTR)Targeting),
-		conveyor(3) // Not a definite port, just putting in pre-code
+		conveyor(3), // Not a definite port, just putting in pre-code
+		top(1),
+		middle(2),
+		bottom(3)
 	{
 		printf("Sparky: start\n");
 		myRobot.SetExpiration(0.1);
@@ -45,16 +51,20 @@ public:
 	{	
 		printf("Autonomous: start\n");
 		int count = 0;
-		targeting.Start();
+		//targeting.Start();
 		while (IsAutonomous() && IsEnabled()) {
-			if(count % 10 == 0) {
+			if(count % 100 == 0) {
 				printf("count: %d\n", count);
 			}
 			myRobot.Drive(0, 0);
 			count++;
-			Wait(0.01);
+			printf("top: %d\n", top.Get());
+			printf("middle: %d\n", middle.Get());
+			printf("bottom: %d\n", bottom.Get());
+			//Wait(0.01);
+			Wait(1);
 		}
-		targeting.Stop();
+		//targeting.Stop();
 		printf("Autonomous: stop\n");
 	}
 
