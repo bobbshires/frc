@@ -201,7 +201,6 @@ public:
 			if(!distCount)
 			{
 				distCount++;
-				lastDist = dv;
 			}
 			else
 			{	
@@ -221,8 +220,8 @@ public:
 				{
 					distCount = 0;
 				}	
-				lastDist = dv;
 			}
+			lastDist = dv;
 			
 			// write to the dashboard if we've seen the same value a certain number of times
 			if(distCount > 3) {
