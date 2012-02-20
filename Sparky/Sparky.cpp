@@ -14,7 +14,7 @@ class Sparky : public SimpleRobot
 	RobotDrive sparky; // robot drive system
 	Joystick stick1, stick2;
 	Task targeting;
-	DigitalInput top, middle, bottom;
+	DigitalInput top, middle, shooter;
 	DriverStation *ds;
 	Jaguar arm;
 	Relay floorPickup, shooterLoader;//, reserved;
@@ -25,9 +25,9 @@ public:
 		stick1(1),
 		stick2(2),
 		targeting("targeting", (FUNCPTR)Targeting),
-		top(14),
-		middle(13),
-		bottom(3), // Not used yet.
+		top(13),
+		middle(14),
+		shooter(12), // Not used yet.
 		ds(DriverStation::GetInstance()),
 		arm(1),
 		floorPickup(7),
@@ -76,8 +76,7 @@ public:
 			if(count % 100 == 0) {
 				printf("count: %d\n", count);
 			}
-			//sparky.Drive(0, 0);
-			//sparky.TankDrive(-1.0, 1.0);
+			sparky.Drive(0, 0);
 			count++;
 
 			Wait(0.01);
@@ -92,6 +91,7 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
+		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		targeting.Start();
 		sparky.SetSafetyEnabled(true);
 		while (IsOperatorControl() && IsEnabled())
@@ -119,13 +119,31 @@ public:
 			}
 			else
 			{
-				arm.Set(-0.05);
+				arm.Set(-0.05); // brake spool
 			}
 			
 			if(stick2.GetRawButton(2))
 			{
-				floorPickup.Set(Relay::kForward);
-				shooterLoader.Set(Relay::kForward);
+				if(shooter.Get() && top.Get() && middle.Get())
+				{
+					floorPickup.Set(Relay::kOff);
+				}
+				else
+				{
+					floorPickup.Set(Relay::kForward);
+				}
+				if(!shooter.Get())
+				{
+					shooterLoader.Set(Relay::kForward);
+				}
+				else if(!top.Get() && shooter.Get())
+				{
+					shooterLoader.Set(Relay::kForward);
+				}
+				else
+				{
+					shooterLoader.Set(Relay::kOff);
+				}
 			}
 			else if(stick2.GetRawButton(3))
 			{
@@ -138,11 +156,10 @@ public:
 				shooterLoader.Set(Relay::kOff);
 			}
 			
-			/*
-			printf("top: %d\n", top.Get());
-			printf("middle: %d\n", middle.Get());
-			printf("bottom: %d\n", bottom.Get());
-			*/
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "top: %d", top.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "middle: %d", middle.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "shooter: %d", shooter.Get());
+			dsLCD->UpdateLCD();
 			
 			Wait(0.005);				// wait for a motor update time
 		}
