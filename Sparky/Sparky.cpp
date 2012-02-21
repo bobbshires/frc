@@ -15,14 +15,23 @@ static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
  */
 class Sparky : public SimpleRobot
 {
-	RobotDrive sparky; // robot drive system
+	RobotDrive sparky;
 	Joystick stick1, stick2;
 	Task targeting;
 	DigitalInput top, middle, shooter;
 	DriverStation *ds;
+	DriverStationLCD *dsLCD;
 	Jaguar arm;
 	Relay floorPickup, shooterLoader;//, reserved;
 	Encoder tension;
+	
+	// constants
+	static const double MOTOR_OFF = 0.0;
+	static const double TENSION_BRAKE = -0.06;
+	static const double ARM_SPEED_COARSE_LOAD = -0.5;
+	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
+	static const double ARM_SPEED_FINE_LOAD = -0.3;
+	static const double ARM_SPEED_FINE_UNLOAD = 0.1;
 
 public:
 	Sparky(void):
@@ -34,6 +43,7 @@ public:
 		middle(14),
 		shooter(12), 
 		ds(DriverStation::GetInstance()),
+		dsLCD(DriverStationLCD::GetInstance()),
 		arm(1),
 		floorPickup(7),
 		shooterLoader(8),
@@ -44,7 +54,6 @@ public:
 		sparky.SetExpiration(0.1);
 		sparky.SetSafetyEnabled(false);
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
-		//sparky.SetInvertedMotor(RobotDrive::kFrontLeftMotor, true);
 		camera.WriteResolution(AxisCameraParams::kResolution_640x480);
 		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
 		camera.WriteExposureControl(AxisCameraParams::kExposure_Hold);
@@ -61,7 +70,6 @@ public:
 	void Autonomous(void)
 	{
 		printf("Autonomous: start\n");
-		int count = 0;
 		sparky.SetSafetyEnabled(false);
 		targeting.Start();
 		while (IsAutonomous() && IsEnabled()) {
@@ -78,11 +86,7 @@ public:
 			}
 			*/
 			
-			if(count % 100 == 0) {
-				printf("count: %d\n", count);
-			}
-			sparky.Drive(0, 0);
-			count++;
+			sparky.Drive(MOTOR_OFF, MOTOR_OFF);
 
 			Wait(0.01);
 		}
@@ -96,8 +100,6 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
-		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
-		double brake = -0.06;
 		targeting.Start();
 		tension.Reset();
 		tension.Start();
@@ -116,27 +118,27 @@ public:
 			}
 			else
 			{
-				sparky.TankDrive(0.0, 0.0);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
 			}
 			
 			// shooter, expect MotorSafety errors until this is a task
 			// coarse adjustment
 			if(stick1.GetRawButton(3))
 			{
-				arm.Set(0.5);
+				arm.Set(ARM_SPEED_COARSE_UNLOAD);
 			}
 			else if(stick1.GetRawButton(4) && shooter.Get())
 			{
-				arm.Set(-0.5);
+				arm.Set(ARM_SPEED_COARSE_LOAD);
 			}
 			// fine adjustment
 			else if(stick1.GetRawButton(6) && shooter.Get())
 			{
-				arm.Set(-0.3);
+				arm.Set(ARM_SPEED_FINE_LOAD);
 			}
 			else if(stick1.GetRawButton(5))
 			{
-				arm.Set(0.1);
+				arm.Set(ARM_SPEED_FINE_UNLOAD);
 			}
 			// move to preset
 			else if(stick1.GetRawButton(7))
@@ -145,17 +147,17 @@ public:
 				{
 					while(tension.Get() < 220)
 					{
-						arm.Set(-0.5);
+						arm.Set(ARM_SPEED_COARSE_LOAD);
 					}
 				}
 				else if(tension.Get() > 220)
 				{
 					while(tension.Get() > 220)
 					{
-						arm.Set(0.5);
+						arm.Set(ARM_SPEED_COARSE_UNLOAD);
 					}
 				}
-				arm.Set(brake);
+				arm.Set(TENSION_BRAKE);
 			}
 			else if(stick1.GetRawButton(2))
 			{
@@ -163,17 +165,17 @@ public:
 				{
 					while(tension.Get() < 0)
 					{
-						arm.Set(-0.5);
+						arm.Set(ARM_SPEED_COARSE_LOAD);
 					}
 				}
 				else if(tension.Get() > 0)
 				{
 					while(tension.Get() > 0)
 					{
-						arm.Set(0.5);
+						arm.Set(ARM_SPEED_COARSE_UNLOAD);
 					}
 				}
-				arm.Set(brake);
+				arm.Set(TENSION_BRAKE);
 			}
 			else if(stick1.GetRawButton(9))
 			{
@@ -181,21 +183,21 @@ public:
 				{
 					while(tension.Get() < 265)
 					{
-						arm.Set(-0.5);
+						arm.Set(ARM_SPEED_COARSE_LOAD);
 					}
 				}
 				else if(tension.Get() > 265)
 				{
 					while(tension.Get() > 265)
 					{
-						arm.Set(0.5);
+						arm.Set(ARM_SPEED_COARSE_UNLOAD);
 					}
 				}
-				arm.Set(brake);
+				arm.Set(TENSION_BRAKE);
 			}
 			else
 			{
-				arm.Set(brake); // brake spool
+				arm.Set(TENSION_BRAKE); // brake spool
 			}
 			
 			// ball loading
@@ -266,11 +268,12 @@ public:
 		double tapeWidth = 2;
 		double tapeHeight = 1.5;
 		ColorImage *image = NULL;
-		//int loopCount = 0;
 		double d, dv;
 		double lastDist = 0;
 		double distCount = 0;
 		int centerMassX;
+		int centerWidth = 320;
+		int centerThresh = 20;
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -371,19 +374,18 @@ public:
 			// write to the dashboard if we've seen the same value a certain number of times
 			if(distCount > 3) {
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "target: %f", dv);
-				if(centerMassX == 320 ||
-				   (centerMassX > 320 && centerMassX - 320 < 20) ||
-				   (centerMassX < 320 && 320 - centerMassX < 20))
+				if(centerMassX == centerWidth ||
+				   (centerMassX > centerWidth && centerMassX - centerWidth < centerThresh) ||
+				   (centerMassX < centerWidth && centerWidth - centerMassX < centerThresh))
 				{
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s (%d px)", "CENTER",
-							centerMassX > 320 ? centerMassX - 320 : 320 - centerMassX);
-					//dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "alignment: %s", "CENTER");
+							centerMassX > centerWidth ? centerMassX - centerWidth : centerWidth - centerMassX);
 				}
-				else if((centerMassX > 320 && centerMassX - 320 > 20))
+				else if((centerMassX > centerWidth && centerMassX - centerWidth > centerThresh))
 				{
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "RIGHT");
 				}
-				else if ((centerMassX < 320 && 320 - centerMassX > 20))
+				else if ((centerMassX < centerWidth && centerWidth - centerMassX > centerThresh))
 				{
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "LEFT");
 				}
