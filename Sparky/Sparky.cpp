@@ -104,7 +104,6 @@ public:
 		tension.Reset();
 		tension.Start();
 		sparky.SetSafetyEnabled(true);
-		sparky.SetSafetyEnabled(false);
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
@@ -121,7 +120,6 @@ public:
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
 			}
 			
-			// shooter, expect MotorSafety errors until this is a task
 			// coarse adjustment
 			if(stick1.GetRawButton(3))
 			{
@@ -143,57 +141,15 @@ public:
 			// move to preset
 			else if(stick1.GetRawButton(7))
 			{
-				if(tension.Get() < 220 && shooter.Get())
-				{
-					while(tension.Get() < 220)
-					{
-						arm.Set(ARM_SPEED_COARSE_LOAD);
-					}
-				}
-				else if(tension.Get() > 220)
-				{
-					while(tension.Get() > 220)
-					{
-						arm.Set(ARM_SPEED_COARSE_UNLOAD);
-					}
-				}
-				arm.Set(TENSION_BRAKE);
+				ArmToPosition(220);
 			}
 			else if(stick1.GetRawButton(2))
 			{
-				if(tension.Get() < 0 && shooter.Get())
-				{
-					while(tension.Get() < 0)
-					{
-						arm.Set(ARM_SPEED_COARSE_LOAD);
-					}
-				}
-				else if(tension.Get() > 0)
-				{
-					while(tension.Get() > 0)
-					{
-						arm.Set(ARM_SPEED_COARSE_UNLOAD);
-					}
-				}
-				arm.Set(TENSION_BRAKE);
+				ArmToPosition(0);
 			}
 			else if(stick1.GetRawButton(9))
 			{
-				if(tension.Get() < 265 && shooter.Get())
-				{
-					while(tension.Get() < 265)
-					{
-						arm.Set(ARM_SPEED_COARSE_LOAD);
-					}
-				}
-				else if(tension.Get() > 265)
-				{
-					while(tension.Get() > 265)
-					{
-						arm.Set(ARM_SPEED_COARSE_UNLOAD);
-					}
-				}
-				arm.Set(TENSION_BRAKE);
+				ArmToPosition(265);
 			}
 			else
 			{
@@ -429,6 +385,27 @@ public:
 			loopCount++;
 		}
 		//*/
+	}
+	
+	void ArmToPosition(int p)
+	{
+		if(tension.Get() < p && shooter.Get())
+		{
+			while(tension.Get() < p)
+			{
+				arm.Set(ARM_SPEED_COARSE_LOAD);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+		}
+		else if(tension.Get() > p)
+		{
+			while(tension.Get() > p)
+			{
+				arm.Set(ARM_SPEED_COARSE_UNLOAD);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+		}
+		arm.Set(TENSION_BRAKE);
 	}
 };
 
