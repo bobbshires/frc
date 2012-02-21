@@ -32,6 +32,11 @@ class Sparky : public SimpleRobot
 	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
 	static const double ARM_SPEED_FINE_LOAD = -0.3;
 	static const double ARM_SPEED_FINE_UNLOAD = 0.1;
+	
+	// encoder
+	static SEM_ID armSem;
+	static int encPos;
+	static bool armSet;
 
 public:
 	Sparky(void):
@@ -63,7 +68,7 @@ public:
 		Wait(5);
 		printf("Sparky: done\n");
 	}
-
+	
 	/**
 	 * Drive left & right motors for 2 seconds then stop
 	 */
@@ -93,13 +98,14 @@ public:
 		targeting.Stop();
 		printf("Autonomous: stop\n");
 	}
-
+	
 	/**
 	 * Runs the motors with arcade steering. 
 	 */
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
+		armSet = false;
 		targeting.Start();
 		tension.Reset();
 		tension.Start();
@@ -120,40 +126,62 @@ public:
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
 			}
 			
-			// coarse adjustment
-			if(stick1.GetRawButton(3))
+			// shooter arm
+			if(!armSet)
 			{
-				arm.Set(ARM_SPEED_COARSE_UNLOAD);
-			}
-			else if(stick1.GetRawButton(4) && shooter.Get())
-			{
-				arm.Set(ARM_SPEED_COARSE_LOAD);
-			}
-			// fine adjustment
-			else if(stick1.GetRawButton(6) && shooter.Get())
-			{
-				arm.Set(ARM_SPEED_FINE_LOAD);
-			}
-			else if(stick1.GetRawButton(5))
-			{
-				arm.Set(ARM_SPEED_FINE_UNLOAD);
-			}
-			// move to preset
-			else if(stick1.GetRawButton(7))
-			{
-				ArmToPosition(220);
-			}
-			else if(stick1.GetRawButton(2))
-			{
-				ArmToPosition(0);
-			}
-			else if(stick1.GetRawButton(9))
-			{
-				ArmToPosition(265);
-			}
-			else
-			{
-				arm.Set(TENSION_BRAKE); // brake spool
+				// coarse adjustment
+				if(stick1.GetRawButton(3))
+				{
+					arm.Set(ARM_SPEED_COARSE_UNLOAD);
+				}
+				else if(stick1.GetRawButton(4) && shooter.Get())
+				{
+					arm.Set(ARM_SPEED_COARSE_LOAD);
+				}
+				// fine adjustment
+				else if(stick1.GetRawButton(6) && shooter.Get())
+				{
+					arm.Set(ARM_SPEED_FINE_LOAD);
+				}
+				else if(stick1.GetRawButton(5))
+				{
+					arm.Set(ARM_SPEED_FINE_UNLOAD);
+				}
+				// move to preset
+				else if(stick1.GetRawButton(7))
+				{
+					/*
+					encPos = 220;
+					armSet = true;
+					Notifier n(ArmToPositionNotifier, this);
+					n.StartSingle(0);
+					*/
+					ArmToPosition(220);
+				}
+				else if(stick1.GetRawButton(2))
+				{
+					/*
+					encPos = 0;
+					armSet = true;
+					Notifier n(ArmToPositionNotifier, this);
+					n.StartSingle(0);
+					*/
+					ArmToPosition(0);
+				}
+				else if(stick1.GetRawButton(9))
+				{
+					/*
+					encPos = 265;
+					armSet = true;
+					Notifier n(ArmToPositionNotifier, this);
+					n.StartSingle(0);
+					*/
+					ArmToPosition(265);
+				}
+				else
+				{
+					arm.Set(TENSION_BRAKE); // brake spool
+				}
 			}
 			
 			// ball loading
@@ -387,6 +415,21 @@ public:
 		//*/
 	}
 	
+	Encoder* GetTension()
+	{
+		return &tension;
+	}
+	
+	Jaguar* GetArm()
+	{
+		return &arm;
+	}
+	
+	DigitalInput* GetShooter()
+	{
+		return &shooter;
+	}
+	
 	void ArmToPosition(int p)
 	{
 		if(tension.Get() < p && shooter.Get())
@@ -406,6 +449,33 @@ public:
 			}
 		}
 		arm.Set(TENSION_BRAKE);
+	}
+	
+	static void ArmToPositionNotifier(void* p)
+	{
+		Sparky *s = (Sparky *)p;
+		Encoder *t = s->GetTension();
+		Jaguar *a = s->GetArm();
+		DigitalInput *shoot = s->GetShooter();
+		{
+			Synchronized sync(armSem);
+			if(s->tension.Get() < encPos && shoot->Get())
+			{
+				while(t->Get() < encPos)
+				{
+					a->Set(ARM_SPEED_COARSE_LOAD);
+				}
+			}
+			else if(t->Get() > encPos)
+			{
+				while(t->Get() > encPos)
+				{
+					a->Set(ARM_SPEED_COARSE_UNLOAD);
+				}
+			}
+			a->Set(TENSION_BRAKE);
+		}
+		armSet = false;
 	}
 };
 
