@@ -1,3 +1,7 @@
+/*
+ * $Id$
+ */
+
 #include "WPILib.h"
 #include "Vision/RGBImage.h"
 #include "Vision/BinaryImage.h"
