@@ -98,12 +98,14 @@ public:
 			*/
 			
 			int p = 185;
+			double wait = 0.73;
+			
 			ArmToPosition(p);
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
 			release.Set(Relay::kReverse);
-			Wait(0.75);
+			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
 			while(!shooter.Get())
@@ -118,7 +120,7 @@ public:
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
 			release.Set(Relay::kReverse);
-			Wait(0.75);
+			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
 		}
@@ -159,7 +161,10 @@ public:
 				// coarse adjustment
 				if(stick3.GetRawButton(3))
 				{
-					arm.Set(ARM_SPEED_COARSE_UNLOAD);
+					if(tension.Get() > 0)
+					{
+						arm.Set(ARM_SPEED_COARSE_UNLOAD);
+					}
 				}
 				else if(stick3.GetRawButton(4) && shooter.Get())
 				{
@@ -172,7 +177,10 @@ public:
 				}
 				else if(stick3.GetRawButton(5))
 				{
-					arm.Set(ARM_SPEED_FINE_UNLOAD);
+					if(tension.Get() > 0)
+					{
+						arm.Set(ARM_SPEED_FINE_UNLOAD);
+					}
 				}
 				// move to preset
 				else if(stick3.GetRawButton(7))
