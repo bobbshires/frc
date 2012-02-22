@@ -9,6 +9,10 @@
 #include "math.h"
 
 static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
+// encoder
+static SEM_ID armSem;
+static int encPos;
+static bool armSet;
  
 /**
  * Sparky class.  Describes the 2012 FRC robot.
@@ -16,13 +20,13 @@ static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
 class Sparky : public SimpleRobot
 {
 	RobotDrive sparky;
-	Joystick stick1, stick2;
+	Joystick stick1, stick2, stick3;
 	Task targeting;
 	DigitalInput top, middle, shooter;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
 	Jaguar arm;
-	Relay floorPickup, shooterLoader;//, reserved;
+	Relay floorPickup, shooterLoader, release;
 	Encoder tension;
 	
 	// constants
@@ -32,17 +36,13 @@ class Sparky : public SimpleRobot
 	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
 	static const double ARM_SPEED_FINE_LOAD = -0.3;
 	static const double ARM_SPEED_FINE_UNLOAD = 0.1;
-	
-	// encoder
-	static SEM_ID armSem;
-	static int encPos;
-	static bool armSet;
 
 public:
 	Sparky(void):
 		sparky(3, 2),
 		stick1(1),
 		stick2(2),
+		stick3(3),
 		targeting("targeting", (FUNCPTR)Targeting),
 		top(13),
 		middle(14),
@@ -52,10 +52,15 @@ public:
 		arm(1),
 		floorPickup(7),
 		shooterLoader(8),
+		release(6),
 		tension(1,2)  // measures tension-revolutions 
 		//reserved(10) // not used yet
 	{
 		printf("Sparky: start\n");
+		encPos = 0;
+		armSet = 0;
+		tension.Reset();
+		tension.Start();
 		sparky.SetExpiration(0.1);
 		sparky.SetSafetyEnabled(false);
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
@@ -77,7 +82,8 @@ public:
 		printf("Autonomous: start\n");
 		sparky.SetSafetyEnabled(false);
 		targeting.Start();
-		while (IsAutonomous() && IsEnabled()) {
+
+		if(IsAutonomous() && IsEnabled()) {
 			/*
 			if(ds->GetDigitalIn(1))
 			{
@@ -91,9 +97,30 @@ public:
 			}
 			*/
 			
-			sparky.Drive(MOTOR_OFF, MOTOR_OFF);
-
-			Wait(0.01);
+			int p = 185;
+			ArmToPosition(p);
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
+			dsLCD->UpdateLCD();
+			release.Set(Relay::kReverse);
+			Wait(0.75);
+			release.Set(Relay::kOff);
+			ArmToPositionFull(0);
+			while(!shooter.Get())
+			{
+				floorPickup.Set(Relay::kForward);
+				shooterLoader.Set(Relay::kForward);
+			}
+			floorPickup.Set(Relay::kOff);
+			shooterLoader.Set(Relay::kOff);
+			ArmToPosition(p);
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
+			dsLCD->UpdateLCD();
+			release.Set(Relay::kReverse);
+			Wait(0.75);
+			release.Set(Relay::kOff);
+			ArmToPositionFull(0);
 		}
 		targeting.Stop();
 		printf("Autonomous: stop\n");
@@ -107,15 +134,15 @@ public:
 		printf("OperatorControl: start\n");
 		armSet = false;
 		targeting.Start();
-		tension.Reset();
-		tension.Start();
+		//tension.Reset();
+		//tension.Start();
 		sparky.SetSafetyEnabled(true);
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
-			if(stick2.GetTrigger() && !stick1.GetTrigger())
+			if(stick1.GetTrigger() && !stick2.GetTrigger())
 			{
-				sparky.ArcadeDrive(stick2);
+				sparky.ArcadeDrive(stick1);
 			}
 			else if(stick1.GetTrigger() && stick2.GetTrigger())
 			{
@@ -130,25 +157,25 @@ public:
 			if(!armSet)
 			{
 				// coarse adjustment
-				if(stick1.GetRawButton(3))
+				if(stick3.GetRawButton(3))
 				{
 					arm.Set(ARM_SPEED_COARSE_UNLOAD);
 				}
-				else if(stick1.GetRawButton(4) && shooter.Get())
+				else if(stick3.GetRawButton(4) && shooter.Get())
 				{
 					arm.Set(ARM_SPEED_COARSE_LOAD);
 				}
 				// fine adjustment
-				else if(stick1.GetRawButton(6) && shooter.Get())
+				else if(stick3.GetRawButton(6) && shooter.Get())
 				{
 					arm.Set(ARM_SPEED_FINE_LOAD);
 				}
-				else if(stick1.GetRawButton(5))
+				else if(stick3.GetRawButton(5))
 				{
 					arm.Set(ARM_SPEED_FINE_UNLOAD);
 				}
 				// move to preset
-				else if(stick1.GetRawButton(7))
+				else if(stick3.GetRawButton(7))
 				{
 					/*
 					encPos = 220;
@@ -158,7 +185,7 @@ public:
 					*/
 					ArmToPosition(220);
 				}
-				else if(stick1.GetRawButton(2))
+				else if(stick3.GetRawButton(2))
 				{
 					/*
 					encPos = 0;
@@ -168,7 +195,7 @@ public:
 					*/
 					ArmToPosition(0);
 				}
-				else if(stick1.GetRawButton(9))
+				else if(stick3.GetRawButton(9))
 				{
 					/*
 					encPos = 265;
@@ -185,7 +212,7 @@ public:
 			}
 			
 			// ball loading
-			if(stick1.GetRawButton(12))
+			if(stick3.GetRawButton(12))
 			{
 				if(shooter.Get() && top.Get() && middle.Get())
 				{
@@ -208,7 +235,7 @@ public:
 					shooterLoader.Set(Relay::kOff);
 				}
 			}
-			else if(stick1.GetRawButton(11))
+			else if(stick3.GetRawButton(11))
 			{
 				floorPickup.Set(Relay::kReverse);
 				shooterLoader.Set(Relay::kReverse);
@@ -219,9 +246,19 @@ public:
 				shooterLoader.Set(Relay::kOff);
 			}
 			
+			// release
+			if(stick3.GetTrigger())
+			{
+				release.Set(Relay::kReverse);
+			}
+			else
+			{
+				release.Set(Relay::kOff);
+			}
+			
 			//dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "volts: %f", ds->GetBatteryVoltage());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
-			dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "Raw: %d", tension.GetRaw());
+			//dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "Raw: %d", tension.GetRaw());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
 			
@@ -415,21 +452,6 @@ public:
 		//*/
 	}
 	
-	Encoder* GetTension()
-	{
-		return &tension;
-	}
-	
-	Jaguar* GetArm()
-	{
-		return &arm;
-	}
-	
-	DigitalInput* GetShooter()
-	{
-		return &shooter;
-	}
-	
 	void ArmToPosition(int p)
 	{
 		if(tension.Get() < p && shooter.Get())
@@ -449,6 +471,42 @@ public:
 			}
 		}
 		arm.Set(TENSION_BRAKE);
+	}
+	
+	void ArmToPositionFull(int p)
+	{
+		if(tension.Get() < p && shooter.Get())
+		{
+			while(tension.Get() < p)
+			{
+				arm.Set(-1.0);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+		}
+		else if(tension.Get() > p)
+		{
+			while(tension.Get() > p)
+			{
+				arm.Set(1.0);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+		}
+		arm.Set(TENSION_BRAKE);
+	}
+	
+	Encoder* GetTension()
+	{
+		return &tension;
+	}
+	
+	Jaguar* GetArm()
+	{
+		return &arm;
+	}
+	
+	DigitalInput* GetShooter()
+	{
+		return &shooter;
 	}
 	
 	static void ArmToPositionNotifier(void* p)
