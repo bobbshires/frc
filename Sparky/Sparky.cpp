@@ -75,13 +75,31 @@ public:
 	}
 	
 	/**
-	 * Drive left & right motors for 2 seconds then stop
+	 * When disabled, suspend the targeting Task.
+	 */
+	void Disabled(void)
+	{
+		targeting.Suspend();
+	}
+	
+	/**
+	 * Overridden to avoid runtime message.
+	 */
+	void RobotInit(void)
+	{
+	}
+	
+	/**
+	 * Score two baskets.
 	 */
 	void Autonomous(void)
 	{
 		printf("Autonomous: start\n");
 		sparky.SetSafetyEnabled(false);
-		targeting.Start();
+		if(targeting.IsSuspended())
+			targeting.Resume();
+		else
+			targeting.Start();
 
 		if(IsAutonomous() && IsEnabled()) {
 			/*
@@ -124,18 +142,21 @@ public:
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
 		}
-		targeting.Stop();
+		targeting.Suspend();
 		printf("Autonomous: stop\n");
 	}
 	
 	/**
-	 * Runs the motors with arcade steering. 
+	 * Tele-op period.
 	 */
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
 		armSet = false;
-		targeting.Start();
+		if(targeting.IsSuspended())
+			targeting.Resume();
+		else
+			targeting.Start();
 		//tension.Reset();
 		//tension.Start();
 		sparky.SetSafetyEnabled(true);
@@ -272,7 +293,7 @@ public:
 			
 			Wait(0.005);				// wait for a motor update time
 		}
-		targeting.Stop();
+		targeting.Suspend();
 		printf("OperatorControl: stop\n");
 	}
 	
