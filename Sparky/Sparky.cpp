@@ -13,6 +13,9 @@ static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
 static SEM_ID armSem;
 static int encPos;
 static bool armSet;
+
+static SEM_ID bridgeArmSem;
+static bool bridgeArmSet;
  
 /**
  * Sparky class.  Describes the 2012 FRC robot.
@@ -53,13 +56,14 @@ public:
 		floorPickup(7),
 		shooterLoader(8),
 		release(6),
-		bridgeArm(9),
+		bridgeArm(5),
 		tension(1,2)  // measures tension-revolutions 
 		//reserved(10) // not used yet
 	{
 		printf("Sparky: start\n");
 		encPos = 0;
-		armSet = 0;
+		armSet = false;
+		bridgeArmSet = false;
 		tension.Reset();
 		tension.Start();
 		sparky.SetExpiration(0.1);
@@ -80,7 +84,8 @@ public:
 	 */
 	void Disabled()
 	{
-		targeting.Suspend();
+		if(targeting.IsReady() && !targeting.IsSuspended())
+			targeting.Suspend();
 	}
 	
 	/**
@@ -156,6 +161,7 @@ public:
 		printf("OperatorControl: start\n");
 		sparky.SetSafetyEnabled(true);
 		armSet = false;
+		bridgeArmSet = false;
 		if(targeting.IsSuspended())
 			targeting.Resume();
 		else
@@ -174,6 +180,32 @@ public:
 			else
 			{
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+			
+			// bridge arm
+			if(!bridgeArmSet)
+			{
+				if(stick1.GetRawButton(6))
+				{
+					/*
+					bridgeArmSet = true;
+					Notifier n(BridgeArmUpNotifier, this);
+					n.StartSingle(0);
+					*/
+					bridgeArm.Set(Relay::kReverse);
+					Wait(0.5);
+					bridgeArm.Set(Relay::kOff);
+				}
+				else if(stick1.GetRawButton(7))
+				{
+					bridgeArm.Set(Relay::kForward);
+					Wait(0.5);
+					bridgeArm.Set(Relay::kOff);
+				}
+				else
+				{
+					bridgeArm.Set(Relay::kOff);
+				}
 			}
 			
 			// shooter arm
@@ -539,6 +571,11 @@ public:
 		return &shooter;
 	}
 	
+	Relay* GetBridgeArm()
+	{
+		return &bridgeArm;
+	}
+	
 	static void ArmToPositionNotifier(void* p)
 	{
 		Sparky *s = (Sparky *)p;
@@ -564,6 +601,21 @@ public:
 			a->Set(TENSION_BRAKE);
 		}
 		armSet = false;
+	}
+	
+	static void BridgeArmUpNotifier(void* p)
+	{
+		printf("BridgeArmUpNotifier: start");
+		Sparky *s = (Sparky *)p;
+		Relay *a = s->GetBridgeArm();
+		{
+			Synchronized sync(bridgeArmSem);
+			a->Set(Relay::kReverse);
+			Wait(0.5);
+			a->Set(Relay::kOff);
+		}
+		bridgeArmSet = false;
+		printf("BridgeArmUpNotifier: done");
 	}
 };
 
