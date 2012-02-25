@@ -26,7 +26,7 @@ class Sparky : public SimpleRobot
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
 	Jaguar arm;
-	Relay floorPickup, shooterLoader, release;
+	Relay floorPickup, shooterLoader, release, bridgeArm;
 	Encoder tension;
 	
 	// constants
@@ -53,6 +53,7 @@ public:
 		floorPickup(7),
 		shooterLoader(8),
 		release(6),
+		bridgeArm(9),
 		tension(1,2)  // measures tension-revolutions 
 		//reserved(10) // not used yet
 	{
@@ -77,7 +78,7 @@ public:
 	/**
 	 * When disabled, suspend the targeting Task.
 	 */
-	void Disabled(void)
+	void Disabled()
 	{
 		targeting.Suspend();
 	}
@@ -85,12 +86,12 @@ public:
 	/**
 	 * Overridden to avoid runtime message.
 	 */
-	void RobotInit(void)
-	{
+	void RobotInit()
+	{	
 	}
 	
 	/**
-	 * Score two baskets.
+	 * Score two baskets from the key.
 	 */
 	void Autonomous(void)
 	{
@@ -101,7 +102,8 @@ public:
 		else
 			targeting.Start();
 
-		if(IsAutonomous() && IsEnabled()) {
+		if(IsAutonomous() && IsEnabled())
+		{
 			/*
 			if(ds->GetDigitalIn(1))
 			{
@@ -152,14 +154,12 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
+		sparky.SetSafetyEnabled(true);
 		armSet = false;
 		if(targeting.IsSuspended())
 			targeting.Resume();
 		else
 			targeting.Start();
-		//tension.Reset();
-		//tension.Start();
-		sparky.SetSafetyEnabled(true);
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
@@ -285,20 +285,18 @@ public:
 				release.Set(Relay::kOff);
 			}
 			
-			//dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "volts: %f", ds->GetBatteryVoltage());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
-			//dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "Raw: %d", tension.GetRaw());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
 			
-			Wait(0.005);				// wait for a motor update time
+			Wait(0.005); // wait for a motor update time
 		}
 		targeting.Suspend();
 		printf("OperatorControl: stop\n");
 	}
 	
 	/**
-	 * 
+	 * Task to handle targeting with the webcam.  Displays distance and target offset.
 	 */
 	static int Targeting(void)
 	{
@@ -347,7 +345,8 @@ public:
 				vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
 				
 				// loop through the reports
-				for (unsigned j = 0; j < reports->size(); j++) {
+				for (unsigned j = 0; j < reports->size(); j++)
+				{
 					ParticleAnalysisReport *r = &(reports->at(j));
 					double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
 					double distance = (double)(fov / (double)2) / tan(degs * rads);
@@ -355,7 +354,8 @@ public:
 					double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
 					// get the topmost basket
 					//if(!target || target->center_mass_y < r->center_mass_y) {
-					if(!target || target->center_mass_y > r->center_mass_y) {
+					if(!target || target->center_mass_y > r->center_mass_y)
+					{
 
 						target = r;
 						d = distance;
@@ -422,7 +422,8 @@ public:
 			lastDist = dv;
 			
 			// write to the dashboard if we've seen the same value a certain number of times
-			if(distCount > 3) {
+			if(distCount > 3)
+			{
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "target: %f", dv);
 				if(centerMassX == centerWidth ||
 				   (centerMassX > centerWidth && centerMassX - centerWidth < centerThresh) ||
@@ -439,14 +440,14 @@ public:
 				{
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "LEFT");
 				}
-				dsLCD->UpdateLCD();
 			}
-			else {
+			else
+			{
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** NO TARGET ***");
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
-				dsLCD->UpdateLCD();
 			}
+			dsLCD->UpdateLCD();
 			
 			dv = 0;
 			
