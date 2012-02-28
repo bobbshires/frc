@@ -159,13 +159,17 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
+		Notifier bridgeArmUpNotifier(BridgeArmUpNotifier, this);
+		Notifier bridgeArmDownNotifier(BridgeArmDownNotifier, this);
 		sparky.SetSafetyEnabled(true);
 		armSet = false;
 		bridgeArmSet = false;
+		/*
 		if(targeting.IsSuspended())
 			targeting.Resume();
 		else
 			targeting.Start();
+		*/
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
@@ -187,20 +191,23 @@ public:
 			{
 				if(stick1.GetRawButton(6))
 				{
-					/*
 					bridgeArmSet = true;
-					Notifier n(BridgeArmUpNotifier, this);
-					n.StartSingle(0);
-					*/
+					bridgeArmDownNotifier.StartSingle(0);
+					/*
 					bridgeArm.Set(Relay::kReverse);
 					Wait(0.5);
 					bridgeArm.Set(Relay::kOff);
+					*/
 				}
 				else if(stick1.GetRawButton(7))
 				{
+					bridgeArmSet = true;
+					bridgeArmUpNotifier.StartSingle(0);
+					/*
 					bridgeArm.Set(Relay::kForward);
 					Wait(0.5);
 					bridgeArm.Set(Relay::kOff);
+					*/
 				}
 				else
 				{
@@ -603,9 +610,9 @@ public:
 		armSet = false;
 	}
 	
-	static void BridgeArmUpNotifier(void* p)
+	static void BridgeArmDownNotifier(void* p)
 	{
-		printf("BridgeArmUpNotifier: start");
+		printf("BridgeArmDownNotifier: start\n");
 		Sparky *s = (Sparky *)p;
 		Relay *a = s->GetBridgeArm();
 		{
@@ -613,9 +620,24 @@ public:
 			a->Set(Relay::kReverse);
 			Wait(0.5);
 			a->Set(Relay::kOff);
+			bridgeArmSet = false;
+			printf("BridgeArmDownNotifier: done\n");
 		}
-		bridgeArmSet = false;
-		printf("BridgeArmUpNotifier: done");
+	}
+	
+	static void BridgeArmUpNotifier(void* p)
+	{
+		printf("BridgeArmUpNotifier: start\n");
+		Sparky *s = (Sparky *)p;
+		Relay *a = s->GetBridgeArm();
+		{
+			Synchronized sync(bridgeArmSem);
+			a->Set(Relay::kForward);
+			Wait(0.5);
+			a->Set(Relay::kOff);
+			bridgeArmSet = false;
+			printf("BridgeArmUpNotifier: done\n");
+		}
 	}
 };
 
