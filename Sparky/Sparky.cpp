@@ -109,19 +109,26 @@ public:
 
 		if(IsAutonomous() && IsEnabled())
 		{
-			/*
 			if(ds->GetDigitalIn(1))
 			{
-				printf("Waiting...");
-				Wait(5);
-				printf("Waiting done!");
+				printf("Waiting 1...");
+				Wait(3);
+				printf("Waiting done!\n");
 			}
-			else
+			else if(ds->GetDigitalIn(2))
 			{
-				
+				printf("Waiting 2...");
+				Wait(5);
+				printf("Waiting done!\n");
 			}
-			*/
+			else if(ds->GetDigitalIn(3))
+			{
+				printf("Waiting 3...");
+				Wait(7);
+				printf("Waiting done!\n");
+			}
 			
+			/*
 			int p = 185;
 			double wait = 0.73;
 			
@@ -148,6 +155,7 @@ public:
 			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
+			*/
 		}
 		targeting.Suspend();
 		printf("Autonomous: stop\n");
@@ -164,12 +172,12 @@ public:
 		sparky.SetSafetyEnabled(true);
 		armSet = false;
 		bridgeArmSet = false;
-		/*
+		
 		if(targeting.IsSuspended())
 			targeting.Resume();
 		else
 			targeting.Start();
-		*/
+
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
@@ -361,6 +369,7 @@ public:
 		int centerMassX;
 		int centerWidth = 320;
 		int centerThresh = 20;
+		bool found = false;
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -369,7 +378,13 @@ public:
 		dsLCD->UpdateLCD();
 
 		while(true) {
-			bool found = false;
+			if(!camera.IsFreshImage()) 
+			{
+				Wait(0.1);
+				continue;
+			}
+			
+			found = false;
 			image = new RGBImage();
 			camera.GetImage(image);
 						
@@ -496,19 +511,6 @@ public:
 		printf("Targeting: stop\n");
 		return 1;
 			
-		/* orignal 
-		BinaryImage *bigObjectsImage = thresholdImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
-		BinaryImage *convexHullImage = bigObjectsImage->ConvexHull(false);  // fill in partial and full rectangles
-		BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-		*/
-
-		// extra crispy
-		/*
-		BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
-		BinaryImage *filteredImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-		*/
-		// experimental
-
 		/*
 		if(!loopCount && camera.IsFreshImage()) {
 			if(image) image->Write("sparky.jpg");
