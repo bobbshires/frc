@@ -38,7 +38,7 @@ class Sparky : public SimpleRobot
 	static const double ARM_SPEED_COARSE_LOAD = -0.5;
 	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
 	static const double ARM_SPEED_FINE_LOAD = -0.3;
-	static const double ARM_SPEED_FINE_UNLOAD = 0.1;
+	static const double ARM_SPEED_FINE_UNLOAD = 0.2;
 
 public:
 	Sparky(void):
@@ -128,7 +128,6 @@ public:
 				printf("Waiting done!\n");
 			}
 			
-			/*
 			int p = 185;
 			double wait = 0.73;
 			
@@ -140,6 +139,7 @@ public:
 			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
+			Wait(1.0);
 			while(!shooter.Get())
 			{
 				floorPickup.Set(Relay::kForward);
@@ -155,7 +155,6 @@ public:
 			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
-			*/
 		}
 		targeting.Suspend();
 		printf("Autonomous: stop\n");
@@ -169,6 +168,7 @@ public:
 		printf("OperatorControl: start\n");
 		Notifier bridgeArmUpNotifier(BridgeArmUpNotifier, this);
 		Notifier bridgeArmDownNotifier(BridgeArmDownNotifier, this);
+		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
 		sparky.SetSafetyEnabled(true);
 		armSet = false;
 		bridgeArmSet = false;
@@ -226,60 +226,60 @@ public:
 			// shooter arm
 			if(!armSet)
 			{
+				// zero encoder
+				if(ds->GetDigitalIn(4))
+				{
+					if(stick3.GetRawButton(8))
+					{
+						tension.Reset();
+					}
+				}
+				
 				// coarse adjustment
 				if(stick3.GetRawButton(3))
 				{
-					if(tension.Get() > 0)
+					if(tension.Get() > 0 || ds->GetDigitalIn(4))
 					{
 						arm.Set(ARM_SPEED_COARSE_UNLOAD);
 					}
 				}
-				else if(stick3.GetRawButton(4) && shooter.Get())
+				else if(stick3.GetRawButton(2) && shooter.Get())
 				{
 					arm.Set(ARM_SPEED_COARSE_LOAD);
 				}
 				// fine adjustment
-				else if(stick3.GetRawButton(6) && shooter.Get())
+				else if(stick3.GetRawButton(5) && shooter.Get())
 				{
 					arm.Set(ARM_SPEED_FINE_LOAD);
 				}
-				else if(stick3.GetRawButton(5))
+				else if(stick3.GetRawButton(4))
 				{
-					if(tension.Get() > 0)
+					if(tension.Get() > 0 || ds->GetDigitalIn(4))
 					{
 						arm.Set(ARM_SPEED_FINE_UNLOAD);
 					}
 				}
 				// move to preset
-				else if(stick3.GetRawButton(7))
-				{
-					/*
-					encPos = 220;
-					armSet = true;
-					Notifier n(ArmToPositionNotifier, this);
-					n.StartSingle(0);
-					*/
-					ArmToPosition(220);
-				}
-				else if(stick3.GetRawButton(2))
-				{
-					/*
-					encPos = 0;
-					armSet = true;
-					Notifier n(ArmToPositionNotifier, this);
-					n.StartSingle(0);
-					*/
-					ArmToPosition(0);
-				}
 				else if(stick3.GetRawButton(9))
 				{
-					/*
-					encPos = 265;
+					encPos = 100;
 					armSet = true;
-					Notifier n(ArmToPositionNotifier, this);
-					n.StartSingle(0);
-					*/
-					ArmToPosition(265);
+					armToPositionNotifier.StartSingle(0);
+					//ArmToPosition(100);
+				}
+				else if(stick3.GetRawButton(8))
+				{
+					encPos = 0;
+					armSet = true;
+					armToPositionNotifier.StartSingle(0);
+					//ArmToPosition(0);
+				}
+				else if(stick3.GetRawButton(10))
+				{
+					encPos = 210;
+					armSet = true;
+					armToPositionNotifier.StartSingle(0);
+					//ArmToPosition(120);
 				}
 				else
 				{
@@ -288,9 +288,13 @@ public:
 			}
 			
 			// ball loading
-			if(stick3.GetRawButton(12))
+			if(stick3.GetRawButton(6))
 			{
 				if(shooter.Get() && top.Get() && middle.Get())
+				{
+					floorPickup.Set(Relay::kOff);
+				}
+				else if(top.Get() && middle.Get() && tension.Get() > 75)
 				{
 					floorPickup.Set(Relay::kOff);
 				}
@@ -298,11 +302,15 @@ public:
 				{
 					floorPickup.Set(Relay::kForward);
 				}
-				if(!shooter.Get())
+				if(!shooter.Get() && tension.Get() < 75)
 				{
 					shooterLoader.Set(Relay::kForward);
 				}
 				else if(!top.Get() && shooter.Get())
+				{
+					shooterLoader.Set(Relay::kForward);
+				}
+				else if(!top.Get())
 				{
 					shooterLoader.Set(Relay::kForward);
 				}
@@ -311,7 +319,7 @@ public:
 					shooterLoader.Set(Relay::kOff);
 				}
 			}
-			else if(stick3.GetRawButton(11))
+			else if(stick3.GetRawButton(7))
 			{
 				floorPickup.Set(Relay::kReverse);
 				shooterLoader.Set(Relay::kReverse);
@@ -332,8 +340,10 @@ public:
 				release.Set(Relay::kOff);
 			}
 			
-			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
-			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "encoder: %d", tension.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "shooter: %d", shooter.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "top: %d", top.Get());
+			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "middle: %d", middle.Get());
 			dsLCD->UpdateLCD();
 			
 			Wait(0.005); // wait for a motor update time
@@ -406,19 +416,21 @@ public:
 					double distance = (double)(fov / (double)2) / tan(degs * rads);
 					double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
 					double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
-					// get the topmost basket
-					//if(!target || target->center_mass_y < r->center_mass_y) {
-					if(!target || target->center_mass_y > r->center_mass_y)
+					// get the bottom-most basket
+					if(!target || target->center_mass_y < r->center_mass_y)
+					// get the top-most basket
+					//if(!target || target->center_mass_y > r->center_mass_y)
 					{
 
 						target = r;
 						d = distance;
 						dv = distanceVert;
 						centerMassX = target->center_mass_x;
-						printf("*** Top Basket ***\n");
+						//printf("*** Top Basket ***\n");
 					}
 					found = true;
 					
+					/*
 					printf("center_mass_x: %d\n", r->center_mass_x);
 					printf("center_mass_y: %d\n", r->center_mass_y);
 					printf("percent: %f\n", r->particleToImagePercent);
@@ -434,6 +446,7 @@ public:
 					printf("distance: %f\n", distance);
 					printf("distanceVert: %f\n", distanceVert);
 					printf("\n");
+					*/
 				}
 				
 				if(!reports->size())
@@ -483,8 +496,9 @@ public:
 				   (centerMassX > centerWidth && centerMassX - centerWidth < centerThresh) ||
 				   (centerMassX < centerWidth && centerWidth - centerMassX < centerThresh))
 				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s (%d px)", "CENTER",
-							centerMassX > centerWidth ? centerMassX - centerWidth : centerWidth - centerMassX);
+					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "%s (%d px %s)", "CENTER",
+							centerMassX > centerWidth ? centerMassX - centerWidth : centerWidth - centerMassX,
+						    centerMassX > centerWidth ? "right" : "left");
 				}
 				else if((centerMassX > centerWidth && centerMassX - centerWidth > centerThresh))
 				{
@@ -598,6 +612,7 @@ public:
 				while(t->Get() < encPos)
 				{
 					a->Set(ARM_SPEED_COARSE_LOAD);
+					Wait(0.005);
 				}
 			}
 			else if(t->Get() > encPos)
@@ -605,11 +620,12 @@ public:
 				while(t->Get() > encPos)
 				{
 					a->Set(ARM_SPEED_COARSE_UNLOAD);
+					Wait(0.005);
 				}
 			}
 			a->Set(TENSION_BRAKE);
+			armSet = false;
 		}
-		armSet = false;
 	}
 	
 	static void BridgeArmDownNotifier(void* p)
