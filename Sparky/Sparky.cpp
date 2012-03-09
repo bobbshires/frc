@@ -444,7 +444,7 @@ public:
 				}
 				
 				// loop through the reports
-				for (unsigned j = 0; !imageError && j < reports->size(); j++)
+				for (unsigned j = 0; reports && j < reports->size(); j++)
 				{
 					ParticleAnalysisReport *r = &(reports->at(j));
 					double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
@@ -484,7 +484,7 @@ public:
 					*/
 				}
 				
-				if(!reports->size())
+				if(reports && !reports->size())
 				{
 					printf("No particles found.\n");
 				}
