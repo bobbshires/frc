@@ -402,14 +402,49 @@ public:
 			for(unsigned i = 0; i < thresholds.size() && !found; i++)
 			{
 				ParticleAnalysisReport *target = NULL;
-				BinaryImage *thresholdImage = image->ThresholdRGB(thresholds.at(i));
-				BinaryImage *convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
-				BinaryImage *bigObjectsImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-				BinaryImage *filteredImage = bigObjectsImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
-				vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
+				BinaryImage *thresholdImage = NULL;
+				BinaryImage *convexHullImage = NULL;
+				BinaryImage *bigObjectsImage = NULL;
+				BinaryImage *filteredImage = NULL;
+				vector<ParticleAnalysisReport> *reports = NULL;
+				bool imageError = false;
+				
+				thresholdImage = image->ThresholdRGB(thresholds.at(i));
+				if(!thresholdImage)
+				{
+					imageError = true;
+				}
+				if(!imageError)
+				{
+					convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
+					if(!convexHullImage)
+					{
+						imageError = true;
+					}
+				}
+				if(!imageError)
+				{
+					bigObjectsImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
+					if(!bigObjectsImage)
+					{
+						imageError = true;
+					}
+				}
+				if(!imageError)
+				{
+					filteredImage = bigObjectsImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
+					if(!filteredImage)
+					{
+						imageError = true;
+					}
+				}
+				if(!imageError)
+				{
+					reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
+				}
 				
 				// loop through the reports
-				for (unsigned j = 0; j < reports->size(); j++)
+				for (unsigned j = 0; !imageError && j < reports->size(); j++)
 				{
 					ParticleAnalysisReport *r = &(reports->at(j));
 					double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
