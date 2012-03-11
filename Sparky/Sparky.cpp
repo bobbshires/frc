@@ -8,14 +8,21 @@
 #include "NiVision.h"
 #include "math.h"
 
-static AxisCamera &camera = AxisCamera::GetInstance("10.3.84.11");
+static AxisCamera *camera;
 // encoder
 static SEM_ID armSem;
 static int encPos;
 static bool armSet;
+static double armSpeed;
 
+// bridge arm
 static SEM_ID bridgeArmSem;
 static bool bridgeArmSet;
+
+// trigger release
+static SEM_ID releaseSem;
+static bool releaseSet;
+static bool intakeOff;
  
 /**
  * Sparky class.  Describes the 2012 FRC robot.
@@ -25,20 +32,22 @@ class Sparky : public SimpleRobot
 	RobotDrive sparky;
 	Joystick stick1, stick2, stick3;
 	Task targeting;
-	DigitalInput top, middle, shooter;
+	DigitalInput top, middle, shooter, trigger, bridgeArmUp, bridgeArmDown;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
 	Jaguar arm;
-	Relay floorPickup, shooterLoader, release, bridgeArm;
+	Relay floorPickup, shooterLoader, release, bridgeArm, lights;
 	Encoder tension;
 	
 	// constants
 	static const double MOTOR_OFF = 0.0;
 	static const double TENSION_BRAKE = -0.06;
+	static const double ARM_SPEED_COARSE = 0.5;
 	static const double ARM_SPEED_COARSE_LOAD = -0.5;
 	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
 	static const double ARM_SPEED_FINE_LOAD = -0.3;
 	static const double ARM_SPEED_FINE_UNLOAD = 0.2;
+	static const double ARM_SPEED_FULL = 1.0;
 
 public:
 	Sparky(void):
@@ -49,7 +58,10 @@ public:
 		targeting("targeting", (FUNCPTR)Targeting),
 		top(13),
 		middle(14),
-		shooter(12), 
+		shooter(12),
+		trigger(11),
+		bridgeArmUp(4),
+		bridgeArmDown(3),
 		ds(DriverStation::GetInstance()),
 		dsLCD(DriverStationLCD::GetInstance()),
 		arm(1),
@@ -57,8 +69,8 @@ public:
 		shooterLoader(8),
 		release(6),
 		bridgeArm(5),
+		lights(4),
 		tension(1,2)  // measures tension-revolutions 
-		//reserved(10) // not used yet
 	{
 		printf("Sparky: start\n");
 		encPos = 0;
@@ -69,12 +81,14 @@ public:
 		sparky.SetExpiration(0.1);
 		sparky.SetSafetyEnabled(false);
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
-		camera.WriteResolution(AxisCameraParams::kResolution_640x480);
-		camera.WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
-		camera.WriteExposureControl(AxisCameraParams::kExposure_Hold);
-		camera.WriteColorLevel(100);
-	    camera.WriteCompression(30);
-		camera.WriteBrightness(30);
+		Wait(5);
+		camera = &AxisCamera::GetInstance("10.3.84.11");
+		camera->WriteResolution(AxisCameraParams::kResolution_640x480);
+		camera->WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
+		camera->WriteExposureControl(AxisCameraParams::kExposure_Hold);
+		camera->WriteColorLevel(100);
+	    camera->WriteCompression(30);
+		camera->WriteBrightness(30);
 		Wait(5);
 		printf("Sparky: done\n");
 	}
@@ -86,6 +100,8 @@ public:
 	{
 		if(targeting.IsReady() && !targeting.IsSuspended())
 			targeting.Suspend();
+		
+		lights.Set(Relay::kReverse);
 	}
 	
 	/**
@@ -102,10 +118,12 @@ public:
 	{
 		printf("Autonomous: start\n");
 		sparky.SetSafetyEnabled(false);
+		/*
 		if(targeting.IsSuspended())
 			targeting.Resume();
 		else
 			targeting.Start();
+	    */
 
 		if(IsAutonomous() && IsEnabled())
 		{
@@ -155,8 +173,12 @@ public:
 			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
+			while(IsAutonomous() && IsEnabled())
+			{
+				Wait(0.05);
+			}
 		}
-		targeting.Suspend();
+		//targeting.Suspend();
 		printf("Autonomous: stop\n");
 	}
 	
@@ -169,14 +191,21 @@ public:
 		Notifier bridgeArmUpNotifier(BridgeArmUpNotifier, this);
 		Notifier bridgeArmDownNotifier(BridgeArmDownNotifier, this);
 		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
+		Notifier releaseNotifier(ReleaseNotifier, this);
+		bool armUp = false;
+		bool armDown = false;
 		sparky.SetSafetyEnabled(true);
 		armSet = false;
 		bridgeArmSet = false;
+		releaseSet = false;
+		intakeOff = false;
 		
 		if(targeting.IsSuspended())
 			targeting.Resume();
 		else
 			targeting.Start();
+		
+		lights.Set(Relay::kForward);
 
 		while (IsOperatorControl() && IsEnabled())
 		{
@@ -199,23 +228,49 @@ public:
 			{
 				if(stick1.GetRawButton(6))
 				{
+					/*
 					bridgeArmSet = true;
 					bridgeArmDownNotifier.StartSingle(0);
-					/*
-					bridgeArm.Set(Relay::kReverse);
-					Wait(0.5);
-					bridgeArm.Set(Relay::kOff);
 					*/
+					if(!bridgeArmDown.Get())
+					{
+						armDown = true;
+					}
+					if(armUp && !bridgeArmUp.Get())
+					{
+						armUp = false;
+					}
+					if(!armDown)
+					{
+						bridgeArm.Set(Relay::kReverse);
+					}
+					else
+					{
+						bridgeArm.Set(Relay::kOff);
+					}
 				}
 				else if(stick1.GetRawButton(7))
 				{
+					/*
 					bridgeArmSet = true;
 					bridgeArmUpNotifier.StartSingle(0);
-					/*
-					bridgeArm.Set(Relay::kForward);
-					Wait(0.5);
-					bridgeArm.Set(Relay::kOff);
 					*/
+					if(!bridgeArmUp.Get())
+					{
+						armUp = true;
+					}
+					if(armDown && !bridgeArmDown.Get())
+					{
+						armDown = true;
+					}
+					if(!armUp)
+					{
+						bridgeArm.Set(Relay::kForward);
+					}
+					else
+					{
+						bridgeArm.Set(Relay::kOff);
+					}
 				}
 				else
 				{
@@ -262,8 +317,9 @@ public:
 				// move to preset
 				else if(stick3.GetRawButton(9))
 				{
-					encPos = 100;
+					encPos = 115;
 					armSet = true;
+					armSpeed = ARM_SPEED_COARSE;
 					armToPositionNotifier.StartSingle(0);
 					//ArmToPosition(100);
 				}
@@ -271,13 +327,15 @@ public:
 				{
 					encPos = 0;
 					armSet = true;
+					armSpeed = ARM_SPEED_FULL;
 					armToPositionNotifier.StartSingle(0);
 					//ArmToPosition(0);
 				}
 				else if(stick3.GetRawButton(10))
 				{
-					encPos = 210;
+					encPos = 175;
 					armSet = true;
+					armSpeed = ARM_SPEED_COARSE;
 					armToPositionNotifier.StartSingle(0);
 					//ArmToPosition(120);
 				}
@@ -288,56 +346,59 @@ public:
 			}
 			
 			// ball loading
-			if(stick3.GetRawButton(6))
+			if(!intakeOff)
 			{
-				if(shooter.Get() && top.Get() && middle.Get())
+				if(stick3.GetRawButton(6))
 				{
-					floorPickup.Set(Relay::kOff);
+					if(shooter.Get() && top.Get() && middle.Get())
+					{
+						floorPickup.Set(Relay::kOff);
+					}
+					else if(top.Get() && middle.Get() && tension.Get() > 75)
+					{
+						floorPickup.Set(Relay::kOff);
+					}
+					else
+					{
+						floorPickup.Set(Relay::kForward);
+					}
+					if(!shooter.Get() && tension.Get() < 75)
+					{
+						shooterLoader.Set(Relay::kForward);
+					}
+					else if(!top.Get() && shooter.Get())
+					{
+						shooterLoader.Set(Relay::kForward);
+					}
+					else if(!top.Get())
+					{
+						shooterLoader.Set(Relay::kForward);
+					}
+					else
+					{
+						shooterLoader.Set(Relay::kOff);
+					}
 				}
-				else if(top.Get() && middle.Get() && tension.Get() > 75)
+				else if(stick3.GetRawButton(7))
 				{
-					floorPickup.Set(Relay::kOff);
+					floorPickup.Set(Relay::kReverse);
+					shooterLoader.Set(Relay::kReverse);
 				}
 				else
 				{
-					floorPickup.Set(Relay::kForward);
-				}
-				if(!shooter.Get() && tension.Get() < 75)
-				{
-					shooterLoader.Set(Relay::kForward);
-				}
-				else if(!top.Get() && shooter.Get())
-				{
-					shooterLoader.Set(Relay::kForward);
-				}
-				else if(!top.Get())
-				{
-					shooterLoader.Set(Relay::kForward);
-				}
-				else
-				{
+					floorPickup.Set(Relay::kOff);
 					shooterLoader.Set(Relay::kOff);
 				}
 			}
-			else if(stick3.GetRawButton(7))
-			{
-				floorPickup.Set(Relay::kReverse);
-				shooterLoader.Set(Relay::kReverse);
-			}
-			else
-			{
-				floorPickup.Set(Relay::kOff);
-				shooterLoader.Set(Relay::kOff);
-			}
 			
 			// release
-			if(stick3.GetTrigger())
+			if(!releaseSet)
 			{
-				release.Set(Relay::kReverse);
-			}
-			else
-			{
-				release.Set(Relay::kOff);
+				if(stick3.GetTrigger())
+				{
+					releaseSet = true;
+					releaseNotifier.StartSingle(0);
+				}
 			}
 			
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "encoder: %d", tension.Get());
@@ -349,6 +410,10 @@ public:
 			Wait(0.005); // wait for a motor update time
 		}
 		targeting.Suspend();
+		bridgeArmUpNotifier.Stop();
+		bridgeArmDownNotifier.Stop();
+		armToPositionNotifier.Stop();
+		releaseNotifier.Stop();
 		printf("OperatorControl: stop\n");
 	}
 	
@@ -362,6 +427,8 @@ public:
 		thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160)); // night
 		thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167)); // day
 		thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190)); // day close
+		//thresholds.push_back(Threshold(0, 169, 145, 255, 0, 155));
+		thresholds.push_back(Threshold(150, 255, 222, 255, 0, 176));
 		ParticleFilterCriteria2 criteria[] = {
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
@@ -388,15 +455,16 @@ public:
 		dsLCD->UpdateLCD();
 
 		while(true) {
-			if(!camera.IsFreshImage()) 
+			if(!camera->IsFreshImage()) 
 			{
-				Wait(0.1);
+				printf("Image is not fresh.\n");
+				Wait(1.0);
 				continue;
 			}
 			
 			found = false;
 			image = new RGBImage();
-			camera.GetImage(image);
+			camera->GetImage(image);
 						
 			// loop through our threshold values
 			for(unsigned i = 0; i < thresholds.size() && !found; i++)
@@ -487,6 +555,14 @@ public:
 				if(reports && !reports->size())
 				{
 					printf("No particles found.\n");
+				}
+				else if(imageError)
+				{
+					printf("Image processing error.\n");
+				}
+				else
+				{
+					printf("Particles found.\n");
 				}
 				
 			    delete filteredImage;
@@ -600,7 +676,7 @@ public:
 			while(tension.Get() < p)
 			{
 				arm.Set(-1.0);
-				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+				Wait(0.005);
 			}
 		}
 		else if(tension.Get() > p)
@@ -608,7 +684,8 @@ public:
 			while(tension.Get() > p)
 			{
 				arm.Set(1.0);
-				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+				Wait(0.005);
+
 			}
 		}
 		arm.Set(TENSION_BRAKE);
@@ -629,9 +706,29 @@ public:
 		return &shooter;
 	}
 	
+	DigitalInput* GetTop()
+	{
+		return &top;
+	}
+	
 	Relay* GetBridgeArm()
 	{
 		return &bridgeArm;
+	}
+	
+	Relay* GetRelease()
+	{
+		return &release;
+	}
+	
+	DigitalInput* GetTrigger()
+	{
+		return &trigger;
+	}
+	
+	Relay* GetShooterLoader()
+	{
+		return &shooterLoader;
 	}
 	
 	static void ArmToPositionNotifier(void* p)
@@ -642,11 +739,11 @@ public:
 		DigitalInput *shoot = s->GetShooter();
 		{
 			Synchronized sync(armSem);
-			if(s->tension.Get() < encPos && shoot->Get())
+			if(t->Get() < encPos && shoot->Get())
 			{
 				while(t->Get() < encPos)
 				{
-					a->Set(ARM_SPEED_COARSE_LOAD);
+					a->Set(-armSpeed);
 					Wait(0.005);
 				}
 			}
@@ -654,7 +751,7 @@ public:
 			{
 				while(t->Get() > encPos)
 				{
-					a->Set(ARM_SPEED_COARSE_UNLOAD);
+					a->Set(armSpeed);
 					Wait(0.005);
 				}
 			}
@@ -690,6 +787,44 @@ public:
 			a->Set(Relay::kOff);
 			bridgeArmSet = false;
 			printf("BridgeArmUpNotifier: done\n");
+		}
+	}
+	
+	static void ReleaseNotifier(void* p)
+	{
+		printf("ReleaseNotifier: start\n");
+		Sparky *s = (Sparky *)p;
+		Relay *r = s->GetRelease();
+		Relay *sl = s->GetShooterLoader(); 
+		DigitalInput *t = s->GetTrigger();
+		DigitalInput *top = s->GetTop();
+		Encoder *e = s->GetTension();
+		{
+			Synchronized sync(releaseSem);
+			while(t->Get())
+			{
+				r->Set(Relay::kReverse);
+				Wait(0.005);
+			}
+			Wait(0.2);
+			r->Set(Relay::kOff);
+			Wait(0.3);
+			releaseSet = false;
+			intakeOff = true;
+			s->ArmToPositionFull(0);
+			while(e->Get() > 75)
+			{
+				Wait(0.1);
+			}
+			while(top->Get())
+			{
+				sl->Set(Relay::kForward);
+				Wait(0.005);
+			}
+			Wait(1.0);
+			sl->Set(Relay::kOff);
+			intakeOff = false;
+			printf("ReleaseNotifier: done\n");
 		}
 	}
 };
