@@ -263,7 +263,7 @@ public:
 					}
 					if(armDown && !bridgeArmDown.Get())
 					{
-						armDown = true;
+						armDown = false;
 					}
 					if(!armUp)
 					{
