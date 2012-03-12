@@ -192,6 +192,7 @@ public:
 		Notifier bridgeArmDownNotifier(BridgeArmDownNotifier, this);
 		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
 		Notifier releaseNotifier(ReleaseNotifier, this);
+		Timer armTimer;
 		bool armUp = false;
 		bool armDown = false;
 		sparky.SetSafetyEnabled(true);
@@ -206,6 +207,7 @@ public:
 			targeting.Start();
 		
 		lights.Set(Relay::kForward);
+		armTimer.Start();
 
 		while (IsOperatorControl() && IsEnabled())
 		{
@@ -345,6 +347,12 @@ public:
 				}
 			}
 			
+			// make sure that ball isn't settling in the arm
+			if(shooter.Get())
+			{
+				armTimer.Reset();
+			}
+			
 			// ball loading
 			if(!intakeOff)
 			{
@@ -362,7 +370,7 @@ public:
 					{
 						floorPickup.Set(Relay::kForward);
 					}
-					if(!shooter.Get() && tension.Get() < 75)
+					if(!shooter.Get() && tension.Get() < 75 && armTimer.HasPeriodPassed(1.0))
 					{
 						shooterLoader.Set(Relay::kForward);
 					}
