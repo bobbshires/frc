@@ -9,6 +9,7 @@
 #include "math.h"
 
 static AxisCamera *camera;
+
 // encoder
 static SEM_ID armSem;
 static int encPos;
@@ -89,6 +90,7 @@ public:
 		camera->WriteColorLevel(100);
 	    camera->WriteCompression(30);
 		camera->WriteBrightness(30);
+		camera->WriteMaxFPS(10);
 		Wait(5);
 		printf("Sparky: done\n");
 	}
@@ -192,6 +194,7 @@ public:
 		Notifier bridgeArmDownNotifier(BridgeArmDownNotifier, this);
 		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
 		Notifier releaseNotifier(ReleaseNotifier, this);
+		Notifier lightsNotifier(LightsNotifier, this);
 		Timer armTimer;
 		bool armUp = false;
 		bool armDown = false;
@@ -206,8 +209,8 @@ public:
 		else
 			targeting.Start();
 		
-		lights.Set(Relay::kForward);
-		armTimer.Start();
+		lightsNotifier.StartSingle(0);
+		//armTimer.Start();
 
 		while (IsOperatorControl() && IsEnabled())
 		{
@@ -348,10 +351,12 @@ public:
 			}
 			
 			// make sure that ball isn't settling in the arm
+			/*
 			if(shooter.Get())
 			{
 				armTimer.Reset();
 			}
+			*/
 			
 			// ball loading
 			if(!intakeOff)
@@ -370,7 +375,9 @@ public:
 					{
 						floorPickup.Set(Relay::kForward);
 					}
-					if(!shooter.Get() && tension.Get() < 75 && armTimer.HasPeriodPassed(1.0))
+					//if(!shooter.Get() && tension.Get() < 75 && armTimer.HasPeriodPassed(1.0))
+					if(!shooter.Get() && tension.Get() < 75)
+
 					{
 						shooterLoader.Set(Relay::kForward);
 					}
@@ -719,6 +726,11 @@ public:
 		return &top;
 	}
 	
+	DigitalInput* GetMiddle()
+	{
+		return &middle;
+	}
+	
 	Relay* GetBridgeArm()
 	{
 		return &bridgeArm;
@@ -737,6 +749,11 @@ public:
 	Relay* GetShooterLoader()
 	{
 		return &shooterLoader;
+	}
+	
+	Relay* GetLights()
+	{
+		return &lights;
 	}
 	
 	static void ArmToPositionNotifier(void* p)
@@ -834,6 +851,49 @@ public:
 			intakeOff = false;
 			printf("ReleaseNotifier: done\n");
 		}
+	}
+	
+	static void LightsNotifier(void* p)
+	{
+		printf("Lights Notifier: start\n");
+		Sparky *s = (Sparky *)p;
+		DigitalInput *top = s->GetTop();
+		DigitalInput *middle = s->GetMiddle();
+		DigitalInput *shooter = s->GetShooter();
+		Relay *lights = s->GetLights();
+		while(s->IsOperatorControl() && s->IsEnabled())
+		{
+			if(shooter->Get() && top->Get() && middle->Get())
+			{
+				lights->Set(Relay::kForward);
+			}
+			else
+			{
+				if(shooter->Get())
+				{
+					lights->Set(Relay::kForward);
+					Wait(0.2);
+					lights->Set(Relay::kOff);
+					Wait(0.1);
+				}
+				if(middle->Get())
+				{
+					lights->Set(Relay::kForward);
+					Wait(0.2);
+					lights->Set(Relay::kOff);
+					Wait(0.1);
+				}
+				if(top->Get())
+				{
+					lights->Set(Relay::kForward);
+					Wait(0.2);
+					lights->Set(Relay::kOff);
+					Wait(0.1);
+				}
+			}
+			Wait(1.0);
+		}
+		printf("LightsNotifier: done\n");
 	}
 };
 
