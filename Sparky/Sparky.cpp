@@ -37,7 +37,8 @@ class Sparky : public SimpleRobot
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
 	Jaguar arm;
-	Relay floorPickup, shooterLoader, release, bridgeArm, lights;
+	Victor floorPickup, shooterLoader;
+	Relay release, bridgeArm, lights;
 	Encoder tension;
 	
 	// constants
@@ -61,13 +62,13 @@ public:
 		middle(14),
 		shooter(12),
 		trigger(11),
-		bridgeArmUp(4),
-		bridgeArmDown(3),
+		bridgeArmUp(3),
+		bridgeArmDown(4),
 		ds(DriverStation::GetInstance()),
 		dsLCD(DriverStationLCD::GetInstance()),
 		arm(1),
-		floorPickup(7),
-		shooterLoader(8),
+		floorPickup(5),
+		shooterLoader(4),
 		release(6),
 		bridgeArm(5),
 		lights(4),
@@ -82,6 +83,7 @@ public:
 		sparky.SetExpiration(0.1);
 		sparky.SetSafetyEnabled(false);
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
+		sparky.SetInvertedMotor(RobotDrive::kRearLeftMotor, true);
 		Wait(5);
 		camera = &AxisCamera::GetInstance("10.3.84.11");
 		camera->WriteResolution(AxisCameraParams::kResolution_640x480);
@@ -148,13 +150,15 @@ public:
 				printf("Waiting done!\n");
 			}
 			
-			int p = 185;
-			double wait = 0.73;
+			int p = 190;
+			//double wait = 0.73;
 			
 			ArmToPosition(p);
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
+			ReleaseNotifier(this);
+			/*
 			release.Set(Relay::kReverse);
 			Wait(wait);
 			release.Set(Relay::kOff);
@@ -162,19 +166,23 @@ public:
 			Wait(1.0);
 			while(!shooter.Get())
 			{
-				floorPickup.Set(Relay::kForward);
-				shooterLoader.Set(Relay::kForward);
+				floorPickup.Set(1.0);
+				shooterLoader.Set(1.0);
 			}
-			floorPickup.Set(Relay::kOff);
-			shooterLoader.Set(Relay::kOff);
-			ArmToPosition(p);
+			floorPickup.Set(0.0);
+			shooterLoader.Set(0.0);
+			*/
+			ArmToPositionNoEye(p);
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
+			/*
 			release.Set(Relay::kReverse);
 			Wait(wait);
 			release.Set(Relay::kOff);
 			ArmToPositionFull(0);
+			*/
+			ReleaseNotifier(this);
 			while(IsAutonomous() && IsEnabled())
 			{
 				Wait(0.05);
@@ -198,7 +206,8 @@ public:
 		Timer armTimer;
 		bool armUp = false;
 		bool armDown = false;
-		sparky.SetSafetyEnabled(true);
+		int lastPosition = 0;
+		sparky.SetSafetyEnabled(false);
 		armSet = false;
 		bridgeArmSet = false;
 		releaseSet = false;
@@ -209,8 +218,9 @@ public:
 		else
 			targeting.Start();
 		
-		lightsNotifier.StartSingle(0);
-		//armTimer.Start();
+		lights.Set(Relay::kForward);
+		//lightsNotifier.StartSingle(0);
+		armTimer.Start();
 
 		while (IsOperatorControl() && IsEnabled())
 		{
@@ -221,12 +231,23 @@ public:
 			}
 			else if(stick1.GetTrigger() && stick2.GetTrigger())
 			{
-				sparky.TankDrive(stick1, stick2);
+				sparky.TankDrive(stick2, stick1);
 			}
 			else
 			{
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
 			}
+			
+			/*
+			if(!bridgeArmDown.Get())
+			{
+				printf("Arm DOWN\n");
+			}
+			if(!bridgeArmUp.Get())
+			{
+				printf("Arm UP\n");
+			}
+			*/
 			
 			// bridge arm
 			if(!bridgeArmSet)
@@ -245,7 +266,7 @@ public:
 					{
 						armUp = false;
 					}
-					if(!armDown)
+					if(!armDown || ds->GetDigitalIn(6))
 					{
 						bridgeArm.Set(Relay::kReverse);
 					}
@@ -253,6 +274,8 @@ public:
 					{
 						bridgeArm.Set(Relay::kOff);
 					}
+					//bridgeArm.Set(Relay::kReverse);
+
 				}
 				else if(stick1.GetRawButton(7))
 				{
@@ -268,7 +291,7 @@ public:
 					{
 						armDown = false;
 					}
-					if(!armUp)
+					if(!armUp || ds->GetDigitalIn(6))
 					{
 						bridgeArm.Set(Relay::kForward);
 					}
@@ -276,6 +299,8 @@ public:
 					{
 						bridgeArm.Set(Relay::kOff);
 					}
+					//bridgeArm.Set(Relay::kForward);
+
 				}
 				else
 				{
@@ -344,6 +369,13 @@ public:
 					armToPositionNotifier.StartSingle(0);
 					//ArmToPosition(120);
 				}
+				else if(stick3.GetRawButton(11))
+				{
+					encPos = lastPosition;
+					armSet = true;
+					armSpeed = ARM_SPEED_COARSE;
+					armToPositionNotifier.StartSingle(0);
+				}
 				else
 				{
 					arm.Set(TENSION_BRAKE); // brake spool
@@ -351,12 +383,10 @@ public:
 			}
 			
 			// make sure that ball isn't settling in the arm
-			/*
 			if(shooter.Get())
 			{
 				armTimer.Reset();
 			}
-			*/
 			
 			// ball loading
 			if(!intakeOff)
@@ -365,44 +395,45 @@ public:
 				{
 					if(shooter.Get() && top.Get() && middle.Get())
 					{
-						floorPickup.Set(Relay::kOff);
+						floorPickup.Set(0.0);
 					}
 					else if(top.Get() && middle.Get() && tension.Get() > 75)
 					{
-						floorPickup.Set(Relay::kOff);
+						floorPickup.Set(0.0);
 					}
 					else
 					{
-						floorPickup.Set(Relay::kForward);
+						floorPickup.Set(1.0);
 					}
-					//if(!shooter.Get() && tension.Get() < 75 && armTimer.HasPeriodPassed(1.0))
-					if(!shooter.Get() && tension.Get() < 75)
+					if(!shooter.Get() && tension.Get() < 75 && armTimer.Get() > 1.0)
+					//if(!shooter.Get() && tension.Get() < 75)
 
 					{
-						shooterLoader.Set(Relay::kForward);
+						shooterLoader.Set(1.0);
 					}
 					else if(!top.Get() && shooter.Get())
+
 					{
-						shooterLoader.Set(Relay::kForward);
+						shooterLoader.Set(1.0);
 					}
 					else if(!top.Get())
 					{
-						shooterLoader.Set(Relay::kForward);
+						shooterLoader.Set(1.0);
 					}
 					else
 					{
-						shooterLoader.Set(Relay::kOff);
+						shooterLoader.Set(0.0);
 					}
 				}
 				else if(stick3.GetRawButton(7))
 				{
-					floorPickup.Set(Relay::kReverse);
-					shooterLoader.Set(Relay::kReverse);
+					floorPickup.Set(-1.0);
+					shooterLoader.Set(-1.0);
 				}
 				else
 				{
-					floorPickup.Set(Relay::kOff);
-					shooterLoader.Set(Relay::kOff);
+					floorPickup.Set(0.0);
+					shooterLoader.Set(0.0);
 				}
 			}
 			
@@ -411,6 +442,7 @@ public:
 			{
 				if(stick3.GetTrigger())
 				{
+					lastPosition = tension.Get();
 					releaseSet = true;
 					releaseNotifier.StartSingle(0);
 				}
@@ -439,11 +471,11 @@ public:
 	{
 		printf("Targeting: start\n");
 		vector<Threshold> thresholds;
-		thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160)); // night
-		thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167)); // day
-		thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190)); // day close
-		//thresholds.push_back(Threshold(0, 169, 145, 255, 0, 155));
-		thresholds.push_back(Threshold(150, 255, 222, 255, 0, 176));
+		thresholds.push_back(Threshold(126, 224, 210, 255, 0, 138));  // field
+		//thresholds.push_back(Threshold(0, 177, 165, 255, 0, 141));    // practice field
+		//thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160)); // night
+		//thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167)); // day
+		//thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190)); // day close
 		ParticleFilterCriteria2 criteria[] = {
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
@@ -468,11 +500,22 @@ public:
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
 		dsLCD->UpdateLCD();
+		
+		DriverStation *ds = DriverStation::GetInstance();
 
 		while(true) {
 			if(!camera->IsFreshImage()) 
 			{
 				printf("Image is not fresh.\n");
+				Wait(1.0);
+				continue;
+			}
+			if(ds->GetDigitalIn(5))
+			{
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "Targeting Disabled");
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
+				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
+				dsLCD->UpdateLCD();
 				Wait(1.0);
 				continue;
 			}
@@ -684,6 +727,27 @@ public:
 		arm.Set(TENSION_BRAKE);
 	}
 	
+	void ArmToPositionNoEye(int p)
+	{
+		if(tension.Get() < p)
+		{
+			while(tension.Get() < p)
+			{
+				arm.Set(ARM_SPEED_COARSE_LOAD);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+		}
+		else if(tension.Get() > p)
+		{
+			while(tension.Get() > p)
+			{
+				arm.Set(ARM_SPEED_COARSE_UNLOAD);
+				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+			}
+		}
+		arm.Set(TENSION_BRAKE);
+	}
+	
 	void ArmToPositionFull(int p)
 	{
 		if(tension.Get() < p && shooter.Get())
@@ -746,7 +810,7 @@ public:
 		return &trigger;
 	}
 	
-	Relay* GetShooterLoader()
+	Victor* GetShooterLoader()
 	{
 		return &shooterLoader;
 	}
@@ -820,7 +884,7 @@ public:
 		printf("ReleaseNotifier: start\n");
 		Sparky *s = (Sparky *)p;
 		Relay *r = s->GetRelease();
-		Relay *sl = s->GetShooterLoader(); 
+		Victor *sl = s->GetShooterLoader(); 
 		DigitalInput *t = s->GetTrigger();
 		DigitalInput *top = s->GetTop();
 		Encoder *e = s->GetTension();
@@ -831,7 +895,7 @@ public:
 				r->Set(Relay::kReverse);
 				Wait(0.005);
 			}
-			Wait(0.2);
+			Wait(0.1);
 			r->Set(Relay::kOff);
 			Wait(0.3);
 			releaseSet = false;
@@ -843,11 +907,12 @@ public:
 			}
 			while(top->Get())
 			{
-				sl->Set(Relay::kForward);
+				sl->Set(1.0);
 				Wait(0.005);
 			}
 			Wait(1.0);
-			sl->Set(Relay::kOff);
+			sl->Set(0.0);
+			s->ArmToPosition(125);
 			intakeOff = false;
 			printf("ReleaseNotifier: done\n");
 		}
