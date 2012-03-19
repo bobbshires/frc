@@ -589,15 +589,9 @@ public:
 			}
 			else
 			{	
-				if(lastDist == dv)
-				{
-					distCount++;
-				}
-				else if(lastDist < dv && dv - lastDist < 1)
-				{
-					distCount++;	
-				}
-				else if(lastDist > dv && lastDist - dv < 1)
+				if(lastDist == dv ||
+				   (lastDist < dv && dv - lastDist < 1) ||
+				   (lastDist > dv && lastDist - dv < 1))
 				{
 					distCount++;
 				}
