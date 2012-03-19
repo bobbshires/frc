@@ -50,6 +50,9 @@ class Sparky : public SimpleRobot
 	static const double ARM_SPEED_FINE_LOAD = -0.3;
 	static const double ARM_SPEED_FINE_UNLOAD = 0.2;
 	static const double ARM_SPEED_FULL = 1.0;
+	static const double INTAKE_LOAD = 1.0;
+	static const double INTAKE_UNLOAD = -1.0;
+	static const double INTAKE_OFF = 0.0;
 
 public:
 	Sparky(void):
@@ -151,37 +154,16 @@ public:
 			}
 			
 			int p = 190;
-			//double wait = 0.73;
 			
 			ArmToPosition(p);
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
 			ReleaseNotifier(this);
-			/*
-			release.Set(Relay::kReverse);
-			Wait(wait);
-			release.Set(Relay::kOff);
-			ArmToPositionFull(0);
-			Wait(1.0);
-			while(!shooter.Get())
-			{
-				floorPickup.Set(1.0);
-				shooterLoader.Set(1.0);
-			}
-			floorPickup.Set(0.0);
-			shooterLoader.Set(0.0);
-			*/
 			ArmToPositionNoEye(p);
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", tension.Get());
 			dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d", shooter.Get(), top.Get(), middle.Get());
 			dsLCD->UpdateLCD();
-			/*
-			release.Set(Relay::kReverse);
-			Wait(wait);
-			release.Set(Relay::kOff);
-			ArmToPositionFull(0);
-			*/
 			ReleaseNotifier(this);
 			while(IsAutonomous() && IsEnabled())
 			{
@@ -238,26 +220,11 @@ public:
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
 			}
 			
-			/*
-			if(!bridgeArmDown.Get())
-			{
-				printf("Arm DOWN\n");
-			}
-			if(!bridgeArmUp.Get())
-			{
-				printf("Arm UP\n");
-			}
-			*/
-			
 			// bridge arm
 			if(!bridgeArmSet)
 			{
 				if(stick1.GetRawButton(6))
 				{
-					/*
-					bridgeArmSet = true;
-					bridgeArmDownNotifier.StartSingle(0);
-					*/
 					if(!bridgeArmDown.Get())
 					{
 						armDown = true;
@@ -274,15 +241,9 @@ public:
 					{
 						bridgeArm.Set(Relay::kOff);
 					}
-					//bridgeArm.Set(Relay::kReverse);
-
 				}
 				else if(stick1.GetRawButton(7))
 				{
-					/*
-					bridgeArmSet = true;
-					bridgeArmUpNotifier.StartSingle(0);
-					*/
 					if(!bridgeArmUp.Get())
 					{
 						armUp = true;
@@ -299,8 +260,6 @@ public:
 					{
 						bridgeArm.Set(Relay::kOff);
 					}
-					//bridgeArm.Set(Relay::kForward);
-
 				}
 				else
 				{
@@ -351,7 +310,6 @@ public:
 					armSet = true;
 					armSpeed = ARM_SPEED_COARSE;
 					armToPositionNotifier.StartSingle(0);
-					//ArmToPosition(100);
 				}
 				else if(stick3.GetRawButton(8))
 				{
@@ -359,7 +317,6 @@ public:
 					armSet = true;
 					armSpeed = ARM_SPEED_FULL;
 					armToPositionNotifier.StartSingle(0);
-					//ArmToPosition(0);
 				}
 				else if(stick3.GetRawButton(10))
 				{
@@ -367,7 +324,6 @@ public:
 					armSet = true;
 					armSpeed = ARM_SPEED_COARSE;
 					armToPositionNotifier.StartSingle(0);
-					//ArmToPosition(120);
 				}
 				else if(stick3.GetRawButton(11))
 				{
@@ -395,45 +351,43 @@ public:
 				{
 					if(shooter.Get() && top.Get() && middle.Get())
 					{
-						floorPickup.Set(0.0);
+						floorPickup.Set(INTAKE_OFF);
 					}
 					else if(top.Get() && middle.Get() && tension.Get() > 75)
 					{
-						floorPickup.Set(0.0);
+						floorPickup.Set(INTAKE_OFF);
 					}
 					else
 					{
-						floorPickup.Set(1.0);
+						floorPickup.Set(INTAKE_LOAD);
 					}
 					if(!shooter.Get() && tension.Get() < 75 && armTimer.Get() > 1.0)
-					//if(!shooter.Get() && tension.Get() < 75)
-
 					{
-						shooterLoader.Set(1.0);
+						shooterLoader.Set(INTAKE_LOAD);
 					}
 					else if(!top.Get() && shooter.Get())
 
 					{
-						shooterLoader.Set(1.0);
+						shooterLoader.Set(INTAKE_LOAD);
 					}
 					else if(!top.Get())
 					{
-						shooterLoader.Set(1.0);
+						shooterLoader.Set(INTAKE_LOAD);
 					}
 					else
 					{
-						shooterLoader.Set(0.0);
+						shooterLoader.Set(INTAKE_OFF);
 					}
 				}
 				else if(stick3.GetRawButton(7))
 				{
-					floorPickup.Set(-1.0);
-					shooterLoader.Set(-1.0);
+					floorPickup.Set(INTAKE_UNLOAD);
+					shooterLoader.Set(INTAKE_UNLOAD);
 				}
 				else
 				{
-					floorPickup.Set(0.0);
-					shooterLoader.Set(0.0);
+					floorPickup.Set(INTAKE_OFF);
+					shooterLoader.Set(INTAKE_OFF);
 				}
 			}
 			
@@ -579,15 +533,12 @@ public:
 					double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
 					// get the bottom-most basket
 					if(!target || target->center_mass_y < r->center_mass_y)
-					// get the top-most basket
-					//if(!target || target->center_mass_y > r->center_mass_y)
 					{
 
 						target = r;
 						d = distance;
 						dv = distanceVert;
 						centerMassX = target->center_mass_x;
-						//printf("*** Top Basket ***\n");
 					}
 					found = true;
 					
@@ -907,11 +858,11 @@ public:
 			}
 			while(top->Get())
 			{
-				sl->Set(1.0);
+				sl->Set(INTAKE_LOAD);
 				Wait(0.005);
 			}
 			Wait(1.0);
-			sl->Set(0.0);
+			sl->Set(INTAKE_OFF);
 			s->ArmToPosition(125);
 			intakeOff = false;
 			printf("ReleaseNotifier: done\n");
