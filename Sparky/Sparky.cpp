@@ -16,10 +16,6 @@ static int encPos;
 static bool armSet;
 static double armSpeed;
 
-// bridge arm
-static SEM_ID bridgeArmSem;
-static bool bridgeArmSet;
-
 // trigger release
 static SEM_ID releaseSem;
 static bool releaseSet;
@@ -80,7 +76,6 @@ public:
 		printf("Sparky: start\n");
 		encPos = 0;
 		armSet = false;
-		bridgeArmSet = false;
 		tension.Reset();
 		tension.Start();
 		sparky.SetExpiration(0.1);
@@ -180,8 +175,6 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
-		Notifier bridgeArmUpNotifier(BridgeArmUpNotifier, this);
-		Notifier bridgeArmDownNotifier(BridgeArmDownNotifier, this);
 		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
 		Notifier releaseNotifier(ReleaseNotifier, this);
 		Notifier lightsNotifier(LightsNotifier, this);
@@ -191,7 +184,6 @@ public:
 		int lastPosition = 0;
 		sparky.SetSafetyEnabled(false);
 		armSet = false;
-		bridgeArmSet = false;
 		releaseSet = false;
 		intakeOff = false;
 		
@@ -221,50 +213,47 @@ public:
 			}
 			
 			// bridge arm
-			if(!bridgeArmSet)
+			if(stick1.GetRawButton(6))
 			{
-				if(stick1.GetRawButton(6))
+				if(!bridgeArmDown.Get())
 				{
-					if(!bridgeArmDown.Get())
-					{
-						armDown = true;
-					}
-					if(armUp && !bridgeArmUp.Get())
-					{
-						armUp = false;
-					}
-					if(!armDown || ds->GetDigitalIn(6))
-					{
-						bridgeArm.Set(Relay::kReverse);
-					}
-					else
-					{
-						bridgeArm.Set(Relay::kOff);
-					}
+					armDown = true;
 				}
-				else if(stick1.GetRawButton(7))
+				if(armUp && !bridgeArmUp.Get())
 				{
-					if(!bridgeArmUp.Get())
-					{
-						armUp = true;
-					}
-					if(armDown && !bridgeArmDown.Get())
-					{
-						armDown = false;
-					}
-					if(!armUp || ds->GetDigitalIn(6))
-					{
-						bridgeArm.Set(Relay::kForward);
-					}
-					else
-					{
-						bridgeArm.Set(Relay::kOff);
-					}
+					armUp = false;
+				}
+				if(!armDown || ds->GetDigitalIn(6))
+				{
+					bridgeArm.Set(Relay::kReverse);
 				}
 				else
 				{
 					bridgeArm.Set(Relay::kOff);
 				}
+			}
+			else if(stick1.GetRawButton(7))
+			{
+				if(!bridgeArmUp.Get())
+				{
+					armUp = true;
+				}
+				if(armDown && !bridgeArmDown.Get())
+				{
+					armDown = false;
+				}
+				if(!armUp || ds->GetDigitalIn(6))
+				{
+					bridgeArm.Set(Relay::kForward);
+				}
+				else
+				{
+					bridgeArm.Set(Relay::kOff);
+				}
+			}
+			else
+			{
+				bridgeArm.Set(Relay::kOff);
 			}
 			
 			// shooter arm
@@ -411,8 +400,6 @@ public:
 			Wait(0.005); // wait for a motor update time
 		}
 		targeting.Suspend();
-		bridgeArmUpNotifier.Stop();
-		bridgeArmDownNotifier.Stop();
 		armToPositionNotifier.Stop();
 		releaseNotifier.Stop();
 		printf("OperatorControl: stop\n");
@@ -791,36 +778,6 @@ public:
 			}
 			a->Set(TENSION_BRAKE);
 			armSet = false;
-		}
-	}
-	
-	static void BridgeArmDownNotifier(void* p)
-	{
-		printf("BridgeArmDownNotifier: start\n");
-		Sparky *s = (Sparky *)p;
-		Relay *a = s->GetBridgeArm();
-		{
-			Synchronized sync(bridgeArmSem);
-			a->Set(Relay::kReverse);
-			Wait(0.5);
-			a->Set(Relay::kOff);
-			bridgeArmSet = false;
-			printf("BridgeArmDownNotifier: done\n");
-		}
-	}
-	
-	static void BridgeArmUpNotifier(void* p)
-	{
-		printf("BridgeArmUpNotifier: start\n");
-		Sparky *s = (Sparky *)p;
-		Relay *a = s->GetBridgeArm();
-		{
-			Synchronized sync(bridgeArmSem);
-			a->Set(Relay::kForward);
-			Wait(0.5);
-			a->Set(Relay::kOff);
-			bridgeArmSet = false;
-			printf("BridgeArmUpNotifier: done\n");
 		}
 	}
 	
