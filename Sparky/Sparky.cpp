@@ -421,14 +421,12 @@ public:
 			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
 			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
 		};
-		double degs = 24;
 		double degsVert = 20;
 		double pi = 3.141592653589;
 		double rads = pi / (double)180;
-		double tapeWidth = 2;
 		double tapeHeight = 1.5;
 		ColorImage *image = NULL;
-		double d, dv;
+		double dv;
 		double lastDist = 0;
 		double distCount = 0;
 		int centerMassX;
@@ -514,16 +512,13 @@ public:
 				for (unsigned j = 0; reports && j < reports->size(); j++)
 				{
 					ParticleAnalysisReport *r = &(reports->at(j));
-					double fov = (double)(tapeWidth * (double)r->imageWidth) / (double)r->boundingRect.width;
-					double distance = (double)(fov / (double)2) / tan(degs * rads);
-					double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
-					double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
+
 					// get the bottom-most basket
 					if(!target || target->center_mass_y < r->center_mass_y)
 					{
-
+						double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
+						double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
 						target = r;
-						d = distance;
 						dv = distanceVert;
 						centerMassX = target->center_mass_x;
 					}
