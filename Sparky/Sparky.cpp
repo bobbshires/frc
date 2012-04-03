@@ -426,13 +426,22 @@ public:
 		double rads = pi / (double)180;
 		double tapeHeight = 1.5;
 		ColorImage *image = NULL;
-		double dv;
+		double fovVert, dv;
 		double lastDist = 0;
 		double distCount = 0;
 		int centerMassX;
 		int centerWidth = 320;
 		int centerThresh = 20;
 		bool found = false;
+		ParticleAnalysisReport *target = NULL;
+		BinaryImage *thresholdImage = NULL;
+		BinaryImage *convexHullImage = NULL;
+		BinaryImage *bigObjectsImage = NULL;
+		BinaryImage *filteredImage = NULL;
+		vector<ParticleAnalysisReport> *reports = NULL;
+		ParticleAnalysisReport *r = NULL;
+		bool imageError = false;
+		unsigned i, j;
 		
 		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
@@ -464,16 +473,8 @@ public:
 			camera->GetImage(image);
 						
 			// loop through our threshold values
-			for(unsigned i = 0; i < thresholds.size() && !found; i++)
+			for(i = 0; i < thresholds.size() && !found; i++)
 			{
-				ParticleAnalysisReport *target = NULL;
-				BinaryImage *thresholdImage = NULL;
-				BinaryImage *convexHullImage = NULL;
-				BinaryImage *bigObjectsImage = NULL;
-				BinaryImage *filteredImage = NULL;
-				vector<ParticleAnalysisReport> *reports = NULL;
-				bool imageError = false;
-				
 				thresholdImage = image->ThresholdRGB(thresholds.at(i));
 				if(!thresholdImage)
 				{
@@ -509,17 +510,16 @@ public:
 				}
 				
 				// loop through the reports
-				for (unsigned j = 0; reports && j < reports->size(); j++)
+				for (j = 0; reports && j < reports->size(); j++)
 				{
-					ParticleAnalysisReport *r = &(reports->at(j));
+					r = &(reports->at(j));
 
 					// get the bottom-most basket
 					if(!target || target->center_mass_y < r->center_mass_y)
 					{
-						double fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
-						double distanceVert = (double)(fovVert / (double)2) / tan(degsVert * rads);
+						fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
+						dv = (double)(fovVert / (double)2) / tan(degsVert * rads);
 						target = r;
-						dv = distanceVert;
 						centerMassX = target->center_mass_x;
 					}
 					found = true;
@@ -561,7 +561,13 @@ public:
 				delete bigObjectsImage;
 				delete thresholdImage;
 				delete reports;
+				filteredImage = NULL;
+				convexHullImage = NULL;
+				bigObjectsImage = NULL;
+				thresholdImage = NULL;
+				reports = NULL;
 				target = NULL;
+				imageError = false;
 			}
 			
 			// determine how many times we've seen a reading
@@ -619,7 +625,8 @@ public:
 			Wait(0.1);
 		}
 		printf("Targeting: stop\n");
-		return 1;
+		
+		return 0;
 			
 		/*
 		if(!loopCount && camera.IsFreshImage()) {
