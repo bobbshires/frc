@@ -83,8 +83,12 @@ public:
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
 		sparky.SetInvertedMotor(RobotDrive::kRearLeftMotor, true);
 		Wait(5);
+		/*
 		camera = &AxisCamera::GetInstance("10.3.84.11");
 		camera->WriteResolution(AxisCameraParams::kResolution_640x480);
+		*/
+		camera = &AxisCamera::GetInstance("10.3.84.12");
+		camera->WriteResolution(AxisCameraParams::kResolution_320x240);
 		camera->WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
 		camera->WriteExposureControl(AxisCameraParams::kExposure_Hold);
 		camera->WriteColorLevel(100);
@@ -412,7 +416,8 @@ public:
 	{
 		printf("Targeting: start\n");
 		vector<Threshold> thresholds;
-		thresholds.push_back(Threshold(126, 224, 210, 255, 0, 138));  // field
+		thresholds.push_back(Threshold(141, 253, 103, 253, 72, 255)); // LED flashlight
+		//thresholds.push_back(Threshold(126, 224, 210, 255, 0, 138));  // field
 		//thresholds.push_back(Threshold(0, 177, 165, 255, 0, 141));    // practice field
 		//thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160)); // night
 		//thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167)); // day
@@ -430,7 +435,7 @@ public:
 		double lastDist = 0;
 		double distCount = 0;
 		int centerMassX;
-		int centerWidth = 320;
+		int centerWidth = 320 / 2;
 		int centerThresh = 20;
 		bool found = false;
 		ParticleAnalysisReport *target = NULL;
@@ -523,24 +528,6 @@ public:
 						centerMassX = target->center_mass_x;
 					}
 					found = true;
-					
-					/*
-					printf("center_mass_x: %d\n", r->center_mass_x);
-					printf("center_mass_y: %d\n", r->center_mass_y);
-					printf("percent: %f\n", r->particleToImagePercent);
-					printf("area: %f\n", r->particleArea);
-					printf("image width: %d\n", r->imageWidth);
-					printf("image height: %d\n", r->imageHeight);
-					printf("rect height: %d\n", r->boundingRect.height);
-					printf("rect width: %d\n", r->boundingRect.width);
-					printf("rect top: %d\n", r->boundingRect.top);
-					printf("rect left: %d\n", r->boundingRect.left);
-					printf("fov: %f\n", fov);
-					printf("fovVert: %f\n", fovVert);
-					printf("distance: %f\n", distance);
-					printf("distanceVert: %f\n", distanceVert);
-					printf("\n");
-					*/
 				}
 				
 				if(reports && !reports->size())
