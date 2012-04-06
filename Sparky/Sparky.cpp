@@ -10,6 +10,12 @@
 
 static AxisCamera *camera;
 
+// lights
+static Relay *g_lights;
+static DigitalInput *g_top;
+static DigitalInput *g_middle;
+static DigitalInput *g_shooter;
+
 // encoder
 static SEM_ID armSem;
 static int encPos;
@@ -82,6 +88,10 @@ public:
 		sparky.SetSafetyEnabled(false);
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
 		sparky.SetInvertedMotor(RobotDrive::kRearLeftMotor, true);
+		g_lights = &lights;
+		g_top = &top;
+		g_middle = &middle;
+		g_shooter = &shooter;
 		Wait(5);
 		/*
 		camera = &AxisCamera::GetInstance("10.3.84.11");
@@ -106,8 +116,6 @@ public:
 	{
 		if(targeting.IsReady() && !targeting.IsSuspended())
 			targeting.Suspend();
-		
-		lights.Set(Relay::kReverse);
 	}
 	
 	/**
@@ -179,9 +187,9 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
+		Task blinkyLights("blinkyLights", (FUNCPTR)BlinkyLights);
 		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
 		Notifier releaseNotifier(ReleaseNotifier, this);
-		Notifier lightsNotifier(LightsNotifier, this);
 		Timer armTimer;
 		bool armUp = false;
 		bool armDown = false;
@@ -196,8 +204,7 @@ public:
 		else
 			targeting.Start();
 		
-		lights.Set(Relay::kForward);
-		//lightsNotifier.StartSingle(0);
+		blinkyLights.Start();
 		armTimer.Start();
 
 		while (IsOperatorControl() && IsEnabled())
@@ -406,6 +413,7 @@ public:
 		targeting.Suspend();
 		armToPositionNotifier.Stop();
 		releaseNotifier.Stop();
+		blinkyLights.Stop();
 		printf("OperatorControl: stop\n");
 	}
 	
@@ -809,47 +817,43 @@ public:
 		}
 	}
 	
-	static void LightsNotifier(void* p)
+	static int BlinkyLights(void)
 	{
-		printf("Lights Notifier: start\n");
-		Sparky *s = (Sparky *)p;
-		DigitalInput *top = s->GetTop();
-		DigitalInput *middle = s->GetMiddle();
-		DigitalInput *shooter = s->GetShooter();
-		Relay *lights = s->GetLights();
-		while(s->IsOperatorControl() && s->IsEnabled())
+		printf("BlinkyLights: start\n");
+		while(true)
 		{
-			if(shooter->Get() && top->Get() && middle->Get())
+			if(g_shooter->Get() && g_top->Get() && g_middle->Get())
 			{
-				lights->Set(Relay::kForward);
+				g_lights->Set(Relay::kForward);
 			}
 			else
 			{
-				if(shooter->Get())
+				if(g_shooter->Get())
 				{
-					lights->Set(Relay::kForward);
+					g_lights->Set(Relay::kForward);
 					Wait(0.2);
-					lights->Set(Relay::kOff);
+					g_lights->Set(Relay::kOff);
 					Wait(0.1);
 				}
-				if(middle->Get())
+				if(g_middle->Get())
 				{
-					lights->Set(Relay::kForward);
+					g_lights->Set(Relay::kForward);
 					Wait(0.2);
-					lights->Set(Relay::kOff);
+					g_lights->Set(Relay::kOff);
 					Wait(0.1);
 				}
-				if(top->Get())
+				if(g_top->Get())
 				{
-					lights->Set(Relay::kForward);
+					g_lights->Set(Relay::kForward);
 					Wait(0.2);
-					lights->Set(Relay::kOff);
+					g_lights->Set(Relay::kOff);
 					Wait(0.1);
 				}
 			}
 			Wait(1.0);
 		}
-		printf("LightsNotifier: done\n");
+		printf("BlinkyLights: done\n");
+		return 0;
 	}
 };
 
