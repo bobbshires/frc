@@ -34,7 +34,7 @@ class Sparky : public SimpleRobot
 {
 	RobotDrive sparky;
 	Joystick stick1, stick2, stick3;
-	Task targeting;
+	Task targeting, blinkyLights;
 	DigitalInput top, middle, shooter, trigger, bridgeArmUp, bridgeArmDown;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
@@ -62,7 +62,8 @@ public:
 		stick1(1),
 		stick2(2),
 		stick3(3),
-		targeting("targeting", (FUNCPTR)Targeting),
+		targeting("targeting", (FUNCPTR)Targeting, 102),
+		blinkyLights("blinkyLights", (FUNCPTR)BlinkyLights, 103),
 		top(13),
 		middle(14),
 		shooter(12),
@@ -116,6 +117,9 @@ public:
 	{
 		if(targeting.IsReady() && !targeting.IsSuspended())
 			targeting.Suspend();
+		
+		if(blinkyLights.IsReady() && !blinkyLights.IsSuspended())
+			blinkyLights.Suspend();
 	}
 	
 	/**
@@ -187,7 +191,6 @@ public:
 	void OperatorControl(void)
 	{
 		printf("OperatorControl: start\n");
-		Task blinkyLights("blinkyLights", (FUNCPTR)BlinkyLights);
 		Notifier armToPositionNotifier(ArmToPositionNotifier, this);
 		Notifier releaseNotifier(ReleaseNotifier, this);
 		Timer armTimer;
@@ -204,7 +207,11 @@ public:
 		else
 			targeting.Start();
 		
-		blinkyLights.Start();
+		if(blinkyLights.IsSuspended())
+			blinkyLights.Resume();
+		else
+			blinkyLights.Start();
+		
 		armTimer.Start();
 
 		while (IsOperatorControl() && IsEnabled())
@@ -411,9 +418,9 @@ public:
 			Wait(0.005); // wait for a motor update time
 		}
 		targeting.Suspend();
+		blinkyLights.Suspend();
 		armToPositionNotifier.Stop();
 		releaseNotifier.Stop();
-		blinkyLights.Stop();
 		printf("OperatorControl: stop\n");
 	}
 	
@@ -617,7 +624,7 @@ public:
 			dv = 0;
 			
 			delete image;
-			Wait(0.1);
+			Wait(0.2);
 		}
 		printf("Targeting: stop\n");
 		
@@ -639,7 +646,7 @@ public:
 	{
 		if(tension.Get() < p && shooter.Get())
 		{
-			while(tension.Get() < p)
+			while(tension.Get() < p && this->IsEnabled())
 			{
 				arm.Set(ARM_SPEED_COARSE_LOAD);
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -647,7 +654,7 @@ public:
 		}
 		else if(tension.Get() > p)
 		{
-			while(tension.Get() > p)
+			while(tension.Get() > p && this->IsEnabled())
 			{
 				arm.Set(ARM_SPEED_COARSE_UNLOAD);
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -660,7 +667,7 @@ public:
 	{
 		if(tension.Get() < p)
 		{
-			while(tension.Get() < p)
+			while(tension.Get() < p && this->IsEnabled())
 			{
 				arm.Set(ARM_SPEED_COARSE_LOAD);
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -668,7 +675,7 @@ public:
 		}
 		else if(tension.Get() > p)
 		{
-			while(tension.Get() > p)
+			while(tension.Get() > p && this->IsEnabled())
 			{
 				arm.Set(ARM_SPEED_COARSE_UNLOAD);
 				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -681,7 +688,7 @@ public:
 	{
 		if(tension.Get() < p && shooter.Get())
 		{
-			while(tension.Get() < p)
+			while(tension.Get() < p && this->IsEnabled())
 			{
 				arm.Set(-1.0);
 				Wait(0.005);
@@ -689,7 +696,7 @@ public:
 		}
 		else if(tension.Get() > p)
 		{
-			while(tension.Get() > p)
+			while(tension.Get() > p && this->IsEnabled())
 			{
 				arm.Set(1.0);
 				Wait(0.005);
@@ -789,7 +796,7 @@ public:
 		Encoder *e = s->GetTension();
 		{
 			Synchronized sync(releaseSem);
-			while(t->Get())
+			while(t->Get() && s->IsEnabled())
 			{
 				r->Set(Relay::kReverse);
 				Wait(0.005);
@@ -800,11 +807,11 @@ public:
 			releaseSet = false;
 			intakeOff = true;
 			s->ArmToPositionFull(0);
-			while(e->Get() > 75)
+			while(e->Get() > 75 && s->IsEnabled())
 			{
 				Wait(0.1);
 			}
-			while(top->Get())
+			while(top->Get() && s->IsEnabled())
 			{
 				sl->Set(INTAKE_LOAD);
 				Wait(0.005);
@@ -850,6 +857,7 @@ public:
 					Wait(0.1);
 				}
 			}
+			printf("Blinking!\n");
 			Wait(1.0);
 		}
 		printf("BlinkyLights: done\n");
