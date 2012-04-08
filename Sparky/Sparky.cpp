@@ -491,6 +491,13 @@ public:
 			found = false;
 			image = new RGBImage();
 			camera->GetImage(image);
+			
+			if(image->GetWidth() == 0 || image->GetHeight() == 0)
+			{
+				printf("Image width or height is 0.\n");
+				Wait(1.0);
+				continue;
+			}
 						
 			// loop through our threshold values
 			for(i = 0; i < thresholds.size() && !found; i++)
