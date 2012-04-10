@@ -495,6 +495,7 @@ public:
 			if(image->GetWidth() == 0 || image->GetHeight() == 0)
 			{
 				printf("Image width or height is 0.\n");
+				delete image;
 				Wait(1.0);
 				continue;
 			}
