@@ -39,8 +39,8 @@ class Sparky : public SimpleRobot
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
 	Jaguar arm;
-	Victor floorPickup, shooterLoader;
-	Relay release, bridgeArm, lights;
+	Victor floorPickup, shooterLoader, bridgeArm;
+	Relay release, lights;
 	Encoder tension;
 	
 	// constants
@@ -55,6 +55,9 @@ class Sparky : public SimpleRobot
 	static const double INTAKE_LOAD = 1.0;
 	static const double INTAKE_UNLOAD = -1.0;
 	static const double INTAKE_OFF = 0.0;
+	static const double BRIDGE_ARM_DOWN = 0.9;
+	static const double BRIDGE_ARM_UP = -0.9;
+	static const double BRIDGE_ARM_OFF = 0.0;
 
 public:
 	Sparky(void):
@@ -75,8 +78,8 @@ public:
 		arm(1),
 		floorPickup(5),
 		shooterLoader(4),
+		bridgeArm(7),
 		release(6),
-		bridgeArm(5),
 		lights(4),
 		tension(1,2)  // measures tension-revolutions 
 	{
@@ -243,11 +246,11 @@ public:
 				}
 				if(!armDown || ds->GetDigitalIn(6))
 				{
-					bridgeArm.Set(Relay::kReverse);
+					bridgeArm.Set(BRIDGE_ARM_UP);
 				}
 				else
 				{
-					bridgeArm.Set(Relay::kOff);
+					bridgeArm.Set(BRIDGE_ARM_OFF);
 				}
 			}
 			else if(stick1.GetRawButton(7))
@@ -262,16 +265,16 @@ public:
 				}
 				if(!armUp || ds->GetDigitalIn(6))
 				{
-					bridgeArm.Set(Relay::kForward);
+					bridgeArm.Set(BRIDGE_ARM_DOWN);
 				}
 				else
 				{
-					bridgeArm.Set(Relay::kOff);
+					bridgeArm.Set(BRIDGE_ARM_OFF);
 				}
 			}
 			else
 			{
-				bridgeArm.Set(Relay::kOff);
+				bridgeArm.Set(BRIDGE_ARM_OFF);
 			}
 			
 			// shooter arm
@@ -352,6 +355,7 @@ public:
 			}
 			
 			// ball loading
+			/*
 			if(!intakeOff)
 			{
 				if(stick3.GetRawButton(6))
@@ -396,6 +400,24 @@ public:
 					floorPickup.Set(INTAKE_OFF);
 					shooterLoader.Set(INTAKE_OFF);
 				}
+			}
+			*/
+			
+			/* FIXME delete for competion, uncomment above code */
+			if(stick3.GetRawButton(6))
+			{
+				floorPickup.Set(INTAKE_LOAD);
+				floorPickup.Set(INTAKE_LOAD);
+			}
+			else if(stick3.GetRawButton(7))
+			{
+				floorPickup.Set(INTAKE_UNLOAD);
+				shooterLoader.Set(INTAKE_UNLOAD);
+			}
+			else
+			{
+				floorPickup.Set(INTAKE_OFF);
+				shooterLoader.Set(INTAKE_OFF);
 			}
 			
 			// release
@@ -739,7 +761,7 @@ public:
 		return &middle;
 	}
 	
-	Relay* GetBridgeArm()
+	Victor* GetBridgeArm()
 	{
 		return &bridgeArm;
 	}
@@ -865,7 +887,7 @@ public:
 					Wait(0.1);
 				}
 			}
-			printf("Blinking!\n");
+			//printf("Blinking!\n");
 			Wait(1.0);
 		}
 		printf("BlinkyLights: done\n");
