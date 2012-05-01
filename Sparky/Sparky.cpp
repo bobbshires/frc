@@ -26,6 +26,14 @@ static double armSpeed;
 static SEM_ID releaseSem;
 static bool releaseSet;
 static bool intakeOff;
+
+// auto aim
+static SEM_ID autoAimSem;
+static bool g_autoAimSet;
+static double g_targetDistance;
+typedef enum {TARGET_LEFT, TARGET_RIGHT, TARGET_CENTER, TARGET_NONE} targetAlignment;
+static targetAlignment g_targetAlign;
+static RobotDrive *g_sparky;
  
 /**
  * Sparky class.  Describes the 2012 FRC robot.
@@ -34,7 +42,7 @@ class Sparky : public SimpleRobot
 {
 	RobotDrive sparky;
 	Joystick stick1, stick2, stick3;
-	Task targeting, blinkyLights;
+	Task targeting, blinkyLights, autoAim;
 	DigitalInput top, middle, shooter, trigger, bridgeArmUp, bridgeArmDown;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
@@ -51,13 +59,16 @@ class Sparky : public SimpleRobot
 	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
 	static const double ARM_SPEED_FINE_LOAD = -0.3;
 	static const double ARM_SPEED_FINE_UNLOAD = 0.2;
-	static const double ARM_SPEED_FULL = 1.0;
+	static const double ARM_SPEED_FULL_LOAD = -1.0;
+	static const double ARM_SPEED_FULL_UNLOAD = 1.0;
+	static const double ARM_ZERO_THRESH = 75;
 	static const double INTAKE_LOAD = 1.0;
 	static const double INTAKE_UNLOAD = -1.0;
 	static const double INTAKE_OFF = 0.0;
 	static const double BRIDGE_ARM_DOWN = 0.9;
 	static const double BRIDGE_ARM_UP = -0.9;
 	static const double BRIDGE_ARM_OFF = 0.0;
+	static const double AUTO_AIM_SPEED = 0.2;
 
 public:
 	Sparky(void):
@@ -67,6 +78,7 @@ public:
 		stick3(3),
 		targeting("targeting", (FUNCPTR)Targeting, 102),
 		blinkyLights("blinkyLights", (FUNCPTR)BlinkyLights, 103),
+		autoAim("autoAim", (FUNCPTR)AutoAim),
 		top(13),
 		middle(14),
 		shooter(12),
@@ -86,6 +98,10 @@ public:
 		printf("Sparky: start\n");
 		encPos = 0;
 		armSet = false;
+		g_autoAimSet = false;
+		g_targetDistance = 0;
+		g_targetAlign = TARGET_NONE;
+		g_sparky = &sparky;
 		tension.Reset();
 		tension.Start();
 		sparky.SetExpiration(0.1);
@@ -220,17 +236,25 @@ public:
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
-			if(stick1.GetTrigger() && !stick2.GetTrigger())
+			if(!g_autoAimSet)
 			{
-				sparky.ArcadeDrive(stick1);
-			}
-			else if(stick1.GetTrigger() && stick2.GetTrigger())
-			{
-				sparky.TankDrive(stick2, stick1);
-			}
-			else
-			{
-				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+				if(stick1.GetTrigger() && !stick2.GetTrigger())
+				{
+					sparky.ArcadeDrive(stick1);
+				}
+				else if(stick1.GetTrigger() && stick2.GetTrigger())
+				{
+					sparky.TankDrive(stick2, stick1);
+				}
+				else if(stick1.GetRawButton(8) && !ds->GetDigitalIn(5))
+				{
+					g_autoAimSet = true;
+					autoAim.Start();
+				}
+				else
+				{
+					sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+				}
 			}
 			
 			// bridge arm
@@ -325,7 +349,7 @@ public:
 				{
 					encPos = 0;
 					armSet = true;
-					armSpeed = ARM_SPEED_FULL;
+					armSpeed = ARM_SPEED_FULL_UNLOAD;
 					armToPositionNotifier.StartSingle(0);
 				}
 				else if(stick3.GetRawButton(10))
@@ -355,7 +379,6 @@ public:
 			}
 			
 			// ball loading
-			/*
 			if(!intakeOff)
 			{
 				if(stick3.GetRawButton(6))
@@ -364,7 +387,7 @@ public:
 					{
 						floorPickup.Set(INTAKE_OFF);
 					}
-					else if(top.Get() && middle.Get() && tension.Get() > 75)
+					else if(top.Get() && middle.Get() && tension.Get() > ARM_ZERO_THRESH)
 					{
 						floorPickup.Set(INTAKE_OFF);
 					}
@@ -372,7 +395,7 @@ public:
 					{
 						floorPickup.Set(INTAKE_LOAD);
 					}
-					if(!shooter.Get() && tension.Get() < 75 && armTimer.Get() > 1.0)
+					if(!shooter.Get() && tension.Get() < ARM_ZERO_THRESH && armTimer.Get() > 1.0)
 					{
 						shooterLoader.Set(INTAKE_LOAD);
 					}
@@ -401,25 +424,7 @@ public:
 					shooterLoader.Set(INTAKE_OFF);
 				}
 			}
-			*/
-			
-			/* FIXME delete for competion, uncomment above code */
-			if(stick3.GetRawButton(6))
-			{
-				floorPickup.Set(INTAKE_LOAD);
-				floorPickup.Set(INTAKE_LOAD);
-			}
-			else if(stick3.GetRawButton(7))
-			{
-				floorPickup.Set(INTAKE_UNLOAD);
-				shooterLoader.Set(INTAKE_UNLOAD);
-			}
-			else
-			{
-				floorPickup.Set(INTAKE_OFF);
-				shooterLoader.Set(INTAKE_OFF);
-			}
-			
+		
 			// release
 			if(!releaseSet)
 			{
@@ -439,6 +444,7 @@ public:
 			
 			Wait(0.005); // wait for a motor update time
 		}
+		autoAim.Stop();
 		targeting.Suspend();
 		blinkyLights.Suspend();
 		armToPositionNotifier.Stop();
@@ -468,7 +474,7 @@ public:
 		double rads = pi / (double)180;
 		double tapeHeight = 1.5;
 		ColorImage *image = NULL;
-		double fovVert, dv;
+		double fovVert, dv = 0;
 		double lastDist = 0;
 		double distCount = 0;
 		int centerMassX;
@@ -633,14 +639,17 @@ public:
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "%s (%d px %s)", "CENTER",
 							centerMassX > centerWidth ? centerMassX - centerWidth : centerWidth - centerMassX,
 						    centerMassX > centerWidth ? "right" : "left");
+					g_targetAlign = TARGET_CENTER;
 				}
 				else if((centerMassX > centerWidth && centerMassX - centerWidth > centerThresh))
 				{
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "RIGHT");
+					g_targetAlign = TARGET_RIGHT;
 				}
 				else if ((centerMassX < centerWidth && centerWidth - centerMassX > centerThresh))
 				{
 					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "LEFT");
+					g_targetAlign = TARGET_LEFT;
 				}
 			}
 			else
@@ -648,9 +657,11 @@ public:
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** NO TARGET ***");
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
 				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
+				g_targetAlign = TARGET_NONE;
 			}
 			dsLCD->UpdateLCD();
 			
+			g_targetDistance = dv;
 			dv = 0;
 			
 			delete image;
@@ -659,17 +670,6 @@ public:
 		printf("Targeting: stop\n");
 		
 		return 0;
-			
-		/*
-		if(!loopCount && camera.IsFreshImage()) {
-			if(image) image->Write("sparky.jpg");
-			if(thresholdImage) thresholdImage->Write("sparky-Thresh.bmp");
-			if(bigObjectsImage) bigObjectsImage->Write("sparky-bigObjects.bmp");
-			if(convexHullImage) convexHullImage->Write("sparky-convexHull.bmp");
-			if(filteredImage) filteredImage->Write("sparky-filtered.bmp");
-			loopCount++;
-		}
-		//*/
 	}
 	
 	void ArmToPosition(int p)
@@ -720,7 +720,7 @@ public:
 		{
 			while(tension.Get() < p && this->IsEnabled())
 			{
-				arm.Set(-1.0);
+				arm.Set(ARM_SPEED_FULL_LOAD);
 				Wait(0.005);
 			}
 		}
@@ -728,7 +728,7 @@ public:
 		{
 			while(tension.Get() > p && this->IsEnabled())
 			{
-				arm.Set(1.0);
+				arm.Set(ARM_SPEED_FULL_UNLOAD);
 				Wait(0.005);
 
 			}
@@ -836,8 +836,10 @@ public:
 			Wait(0.3);
 			releaseSet = false;
 			intakeOff = true;
+			armSet = true;
 			s->ArmToPositionFull(0);
-			while(e->Get() > 75 && s->IsEnabled())
+			armSet = false;
+			while(e->Get() > ARM_ZERO_THRESH && s->IsEnabled())
 			{
 				Wait(0.1);
 			}
@@ -891,6 +893,39 @@ public:
 			Wait(1.0);
 		}
 		printf("BlinkyLights: done\n");
+		return 0;
+	}
+	
+	static int AutoAim(void)
+	{
+		Synchronized sync(autoAimSem);
+		printf("AutoAim: start\n");
+		
+		targetAlignment ta = g_targetAlign;
+		double d = g_targetDistance;
+		
+		while(ta != TARGET_CENTER)
+		{
+			if(ta == TARGET_RIGHT)
+			{
+				g_sparky->TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
+			}
+			else if(ta == TARGET_LEFT)
+			{
+				g_sparky->TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
+			}
+			else if(ta == TARGET_NONE)
+			{
+				break;
+			}
+			Wait(0.1);
+			ta = g_targetAlign;
+			d = g_targetDistance;
+		}
+
+		g_sparky->TankDrive(MOTOR_OFF, MOTOR_OFF);
+		g_autoAimSet = false;
+		printf("AutoAim: done\n");
 		return 0;
 	}
 };
