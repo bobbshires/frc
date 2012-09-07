@@ -838,7 +838,6 @@ public:
 			intakeOff = true;
 			armSet = true;
 			s->ArmToPositionFull(0);
-			armSet = false;
 			while(e->Get() > ARM_ZERO_THRESH && s->IsEnabled())
 			{
 				Wait(0.1);
@@ -852,6 +851,7 @@ public:
 			sl->Set(INTAKE_OFF);
 			s->ArmToPosition(125);
 			intakeOff = false;
+			armSet = false;
 			printf("ReleaseNotifier: done\n");
 		}
 	}
