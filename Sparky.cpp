@@ -11,7 +11,7 @@ class Sparky : public SimpleRobot
 {
 	RobotDrive sparky;
 	Joystick stick1, stick2, stick3;
-	Task targeting, blinkyLights, autoAim;
+	Task targetingTask, blinkyLightsTask, autoAimTask;
 	DigitalInput top, middle, shooter, trigger, bridgeArmUp, bridgeArmDown;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
@@ -19,35 +19,20 @@ class Sparky : public SimpleRobot
 	Victor floorPickup, shooterLoader, bridgeArm;
 	Relay release, lights;
 	Encoder tension;
+	Targeting targeting;
+	Loader loader;
+	bool autoAimSet;
+	static SEM_ID autoAimSem;
 	
-	// constants
-	static const double MOTOR_OFF = 0.0;
-	static const double TENSION_BRAKE = -0.06;
-	static const double ARM_SPEED_COARSE = 0.5;
-	static const double ARM_SPEED_COARSE_LOAD = -0.5;
-	static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
-	static const double ARM_SPEED_FINE_LOAD = -0.3;
-	static const double ARM_SPEED_FINE_UNLOAD = 0.2;
-	static const double ARM_SPEED_FULL_LOAD = -1.0;
-	static const double ARM_SPEED_FULL_UNLOAD = 1.0;
-	static const double ARM_ZERO_THRESH = 75;
-	static const double INTAKE_LOAD = 1.0;
-	static const double INTAKE_UNLOAD = -1.0;
-	static const double INTAKE_OFF = 0.0;
-	static const double BRIDGE_ARM_DOWN = 0.9;
-	static const double BRIDGE_ARM_UP = -0.9;
-	static const double BRIDGE_ARM_OFF = 0.0;
-	static const double AUTO_AIM_SPEED = 0.2;
-
 public:
 	Sparky(void):
 		sparky(3, 2),
 		stick1(1),
 		stick2(2),
 		stick3(3),
-		targeting("targeting", (FUNCPTR)Targeting, 102),
-		blinkyLights("blinkyLights", (FUNCPTR)BlinkyLights, 103),
-		autoAim("autoAim", (FUNCPTR)AutoAim),
+		targetingTask("targeting", (FUNCPTR)Targeting::VisionTracking, 102),
+		blinkyLightsTask("blinkyLights", (FUNCPTR)BlinkyLights, 103),
+		autoAimTask("autoAim", (FUNCPTR)AutoAim),
 		top(13),
 		middle(14),
 		shooter(12),
@@ -62,38 +47,20 @@ public:
 		bridgeArm(7),
 		release(6),
 		lights(4),
-		tension(1,2)  // measures tension-revolutions 
+		tension(1,2),  // measures tension-revolutions
+		targeting(),
+		loader()
 	{
 		printf("Sparky: start\n");
 		encPos = 0;
 		armSet = false;
-		g_autoAimSet = false;
-		g_targetDistance = 0;
-		g_targetAlign = TARGET_NONE;
+		autoAimSet = false;
 		tension.Reset();
 		tension.Start();
 		sparky.SetExpiration(0.1);
 		sparky.SetSafetyEnabled(false);
 		sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
 		sparky.SetInvertedMotor(RobotDrive::kRearLeftMotor, true);
-		g_lights = &lights;
-		g_top = &top;
-		g_middle = &middle;
-		g_shooter = &shooter;
-		Wait(5);
-		/*
-		camera = &AxisCamera::GetInstance("10.3.84.11");
-		camera->WriteResolution(AxisCameraParams::kResolution_640x480);
-		*/
-		camera = &AxisCamera::GetInstance("10.3.84.12");
-		camera->WriteResolution(AxisCameraParams::kResolution_320x240);
-		camera->WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Hold);
-		camera->WriteExposureControl(AxisCameraParams::kExposure_Hold);
-		camera->WriteColorLevel(100);
-	    camera->WriteCompression(30);
-		camera->WriteBrightness(30);
-		camera->WriteMaxFPS(10);
-		Wait(5);
 		printf("Sparky: done\n");
 	}
 	
@@ -102,11 +69,11 @@ public:
 	 */
 	void Disabled()
 	{
-		if(targeting.IsReady() && !targeting.IsSuspended())
-			targeting.Suspend();
+		if(targetingTask.IsReady() && !targetingTask.IsSuspended())
+			targetingTask.Suspend();
 		
-		if(blinkyLights.IsReady() && !blinkyLights.IsSuspended())
-			blinkyLights.Suspend();
+		if(blinkyLightsTask.IsReady() && !blinkyLightsTask.IsSuspended())
+			blinkyLightsTask.Suspend();
 	}
 	
 	/**
@@ -125,9 +92,9 @@ public:
 		sparky.SetSafetyEnabled(false);
 		/*
 		if(targeting.IsSuspended())
-			targeting.Resume();
+			targetingTask.Resume();
 		else
-			targeting.Start();
+			targetingTask.Start();
 	    */
 
 		if(IsAutonomous() && IsEnabled())
@@ -168,7 +135,7 @@ public:
 				Wait(0.05);
 			}
 		}
-		//targeting.Suspend();
+		//targetingTask.Suspend();
 		printf("Autonomous: stop\n");
 	}
 	
@@ -187,24 +154,24 @@ public:
 		sparky.SetSafetyEnabled(false);
 		armSet = false;
 		releaseSet = false;
-		intakeOff = false;
+		loader.setIntakeOff(false);
 		
-		if(targeting.IsSuspended())
-			targeting.Resume();
+		if(targetingTask.IsSuspended())
+			targetingTask.Resume();
 		else
-			targeting.Start();
+			targetingTask.Start();
 		
-		if(blinkyLights.IsSuspended())
-			blinkyLights.Resume();
+		if(blinkyLightsTask.IsSuspended())
+			blinkyLightsTask.Resume();
 		else
-			blinkyLights.Start();
+			blinkyLightsTask.Start((UINT32)(this));
 		
 		armTimer.Start();
 
 		while (IsOperatorControl() && IsEnabled())
 		{
 			// drive
-			if(!g_autoAimSet)
+			if(!autoAimSet)
 			{
 				if(stick1.GetTrigger() && !stick2.GetTrigger())
 				{
@@ -216,8 +183,8 @@ public:
 				}
 				else if(stick1.GetRawButton(8) && !ds->GetDigitalIn(5))
 				{
-					g_autoAimSet = true;
-					autoAim.Start((UINT32)(this));
+					autoAimSet = true;
+					autoAimTask.Start((UINT32)(this));
 				}
 				else
 				{
@@ -347,49 +314,19 @@ public:
 			}
 			
 			// ball loading
-			if(!intakeOff)
+			if(!loader.isIntakeOff())
 			{
 				if(stick3.GetRawButton(6))
 				{
-					if(shooter.Get() && top.Get() && middle.Get())
-					{
-						floorPickup.Set(INTAKE_OFF);
-					}
-					else if(top.Get() && middle.Get() && tension.Get() > ARM_ZERO_THRESH)
-					{
-						floorPickup.Set(INTAKE_OFF);
-					}
-					else
-					{
-						floorPickup.Set(INTAKE_LOAD);
-					}
-					if(!shooter.Get() && tension.Get() < ARM_ZERO_THRESH && armTimer.Get() > 1.0)
-					{
-						shooterLoader.Set(INTAKE_LOAD);
-					}
-					else if(!top.Get() && shooter.Get())
-
-					{
-						shooterLoader.Set(INTAKE_LOAD);
-					}
-					else if(!top.Get())
-					{
-						shooterLoader.Set(INTAKE_LOAD);
-					}
-					else
-					{
-						shooterLoader.Set(INTAKE_OFF);
-					}
+					loader.load(armTimer, tension);
 				}
 				else if(stick3.GetRawButton(7))
 				{
-					floorPickup.Set(INTAKE_UNLOAD);
-					shooterLoader.Set(INTAKE_UNLOAD);
+					loader.unload();
 				}
 				else
 				{
-					floorPickup.Set(INTAKE_OFF);
-					shooterLoader.Set(INTAKE_OFF);
+					loader.stop();
 				}
 			}
 		
@@ -412,232 +349,12 @@ public:
 			
 			Wait(0.005); // wait for a motor update time
 		}
-		autoAim.Stop();
-		targeting.Suspend();
-		blinkyLights.Suspend();
+		autoAimTask.Stop();
+		targetingTask.Suspend();
+		blinkyLightsTask.Suspend();
 		armToPositionNotifier.Stop();
 		releaseNotifier.Stop();
 		printf("OperatorControl: stop\n");
-	}
-	
-	/**
-	 * Task to handle targeting with the webcam.  Displays distance and target offset.
-	 */
-	static int Targeting(void)
-	{
-		printf("Targeting: start\n");
-		vector<Threshold> thresholds;
-		thresholds.push_back(Threshold(141, 253, 103, 253, 72, 255)); // LED flashlight
-		//thresholds.push_back(Threshold(126, 224, 210, 255, 0, 138));  // field
-		//thresholds.push_back(Threshold(0, 177, 165, 255, 0, 141));    // practice field
-		//thresholds.push_back(Threshold(0, 158, 123, 255, 0, 160)); // night
-		//thresholds.push_back(Threshold(107, 189, 150, 255, 68, 167)); // day
-		//thresholds.push_back(Threshold(78, 210, 184, 255, 0, 190)); // day close
-		ParticleFilterCriteria2 criteria[] = {
-			{IMAQ_MT_BOUNDING_RECT_WIDTH, 10, 400, false, false},
-			{IMAQ_MT_BOUNDING_RECT_HEIGHT, 10, 400, false, false}
-		};
-		double degsVert = 20;
-		double pi = 3.141592653589;
-		double rads = pi / (double)180;
-		double tapeHeight = 1.5;
-		ColorImage *image = NULL;
-		double fovVert, dv = 0;
-		double lastDist = 0;
-		double distCount = 0;
-		int centerMassX;
-		int centerWidth = 320 / 2;
-		int centerThresh = 20;
-		bool found = false;
-		ParticleAnalysisReport *target = NULL;
-		BinaryImage *thresholdImage = NULL;
-		BinaryImage *convexHullImage = NULL;
-		BinaryImage *bigObjectsImage = NULL;
-		BinaryImage *filteredImage = NULL;
-		vector<ParticleAnalysisReport> *reports = NULL;
-		ParticleAnalysisReport *r = NULL;
-		bool imageError = false;
-		unsigned i, j;
-		
-		DriverStationLCD *dsLCD = DriverStationLCD::GetInstance();
-		dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "");
-		dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
-		dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
-		dsLCD->UpdateLCD();
-		
-		DriverStation *ds = DriverStation::GetInstance();
-
-		while(true) {
-			if(!camera->IsFreshImage()) 
-			{
-				printf("Image is not fresh.\n");
-				Wait(1.0);
-				continue;
-			}
-			if(ds->GetDigitalIn(5))
-			{
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "Targeting Disabled");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
-				dsLCD->UpdateLCD();
-				Wait(1.0);
-				continue;
-			}
-			
-			found = false;
-			image = new RGBImage();
-			camera->GetImage(image);
-			
-			if(image->GetWidth() == 0 || image->GetHeight() == 0)
-			{
-				printf("Image width or height is 0.\n");
-				delete image;
-				Wait(1.0);
-				continue;
-			}
-						
-			// loop through our threshold values
-			for(i = 0; i < thresholds.size() && !found; i++)
-			{
-				thresholdImage = image->ThresholdRGB(thresholds.at(i));
-				if(!thresholdImage)
-				{
-					imageError = true;
-				}
-				if(!imageError)
-				{
-					convexHullImage = thresholdImage->ConvexHull(false);  // fill in partial and full rectangles
-					if(!convexHullImage)
-					{
-						imageError = true;
-					}
-				}
-				if(!imageError)
-				{
-					bigObjectsImage = convexHullImage->ParticleFilter(criteria, 2);  // find the rectangles
-					if(!bigObjectsImage)
-					{
-						imageError = true;
-					}
-				}
-				if(!imageError)
-				{
-					filteredImage = bigObjectsImage->RemoveSmallObjects(false, 2);  // remove small objects (noise)
-					if(!filteredImage)
-					{
-						imageError = true;
-					}
-				}
-				if(!imageError)
-				{
-					reports = filteredImage->GetOrderedParticleAnalysisReports();  // get the results
-				}
-				
-				// loop through the reports
-				for (j = 0; reports && j < reports->size(); j++)
-				{
-					r = &(reports->at(j));
-
-					// get the bottom-most basket
-					if(!target || target->center_mass_y < r->center_mass_y)
-					{
-						fovVert = (double)(tapeHeight * (double)r->imageHeight) / (double)r->boundingRect.height;
-						dv = (double)(fovVert / (double)2) / tan(degsVert * rads);
-						target = r;
-						centerMassX = target->center_mass_x;
-					}
-					found = true;
-				}
-				
-				if(reports && !reports->size())
-				{
-					printf("No particles found.\n");
-				}
-				else if(imageError)
-				{
-					printf("Image processing error.\n");
-				}
-				else
-				{
-					printf("Particles found.\n");
-				}
-				
-			    delete filteredImage;
-				delete convexHullImage;
-				delete bigObjectsImage;
-				delete thresholdImage;
-				delete reports;
-				filteredImage = NULL;
-				convexHullImage = NULL;
-				bigObjectsImage = NULL;
-				thresholdImage = NULL;
-				reports = NULL;
-				target = NULL;
-				imageError = false;
-			}
-			
-			// determine how many times we've seen a reading
-			if(!distCount)
-			{
-				distCount++;
-			}
-			else
-			{	
-				if(lastDist == dv ||
-				   (lastDist < dv && dv - lastDist < 1) ||
-				   (lastDist > dv && lastDist - dv < 1))
-				{
-					distCount++;
-				}
-				else
-				{
-					distCount = 0;
-				}	
-			}
-			lastDist = dv;
-			
-			// write to the dashboard if we've seen the same value a certain number of times
-			if(distCount > 3)
-			{
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "target: %f", dv);
-				if(centerMassX == centerWidth ||
-				   (centerMassX > centerWidth && centerMassX - centerWidth < centerThresh) ||
-				   (centerMassX < centerWidth && centerWidth - centerMassX < centerThresh))
-				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "%s (%d px %s)", "CENTER",
-							centerMassX > centerWidth ? centerMassX - centerWidth : centerWidth - centerMassX,
-						    centerMassX > centerWidth ? "right" : "left");
-					g_targetAlign = TARGET_CENTER;
-				}
-				else if((centerMassX > centerWidth && centerMassX - centerWidth > centerThresh))
-				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "RIGHT");
-					g_targetAlign = TARGET_RIGHT;
-				}
-				else if ((centerMassX < centerWidth && centerWidth - centerMassX > centerThresh))
-				{
-					dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "align: %s", "LEFT");
-					g_targetAlign = TARGET_LEFT;
-				}
-			}
-			else
-			{
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line1, "*** NO TARGET ***");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line2, "");
-				dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "");
-				g_targetAlign = TARGET_NONE;
-			}
-			dsLCD->UpdateLCD();
-			
-			g_targetDistance = dv;
-			dv = 0;
-			
-			delete image;
-			Wait(0.2);
-		}
-		printf("Targeting: stop\n");
-		
-		return 0;
 	}
 	
 	void ArmToPosition(int p)
@@ -803,7 +520,7 @@ public:
 			r->Set(Relay::kOff);
 			Wait(0.3);
 			releaseSet = false;
-			intakeOff = true;
+			s->loader.setIntakeOff(true);
 			armSet = true;
 			s->ArmToPositionFull(0);
 			while(e->Get() > ARM_ZERO_THRESH && s->IsEnabled())
@@ -818,42 +535,43 @@ public:
 			Wait(1.0);
 			sl->Set(INTAKE_OFF);
 			s->ArmToPosition(125);
-			intakeOff = false;
+			s->loader.setIntakeOff(false);
 			armSet = false;
 			printf("ReleaseNotifier: done\n");
 		}
 	}
 	
-	static int BlinkyLights(void)
+	static int BlinkyLights(UINT32 argPtr)
 	{
 		printf("BlinkyLights: start\n");
+		Sparky *s = (Sparky*)argPtr;
 		while(true)
 		{
-			if(g_shooter->Get() && g_top->Get() && g_middle->Get())
+			if(s->loader.getShooter() && s->loader.getTop() && s->loader.getMiddle())
 			{
-				g_lights->Set(Relay::kForward);
+				s->lights.Set(Relay::kForward);
 			}
 			else
 			{
-				if(g_shooter->Get())
+				if(s->loader.getShooter())
 				{
-					g_lights->Set(Relay::kForward);
+					s->lights.Set(Relay::kForward);
 					Wait(0.2);
-					g_lights->Set(Relay::kOff);
+					s->lights.Set(Relay::kOff);
 					Wait(0.1);
 				}
-				if(g_middle->Get())
+				if(s->loader.getMiddle())
 				{
-					g_lights->Set(Relay::kForward);
+					s->lights.Set(Relay::kForward);
 					Wait(0.2);
-					g_lights->Set(Relay::kOff);
+					s->lights.Set(Relay::kOff);
 					Wait(0.1);
 				}
-				if(g_top->Get())
+				if(s->loader.getTop())
 				{
-					g_lights->Set(Relay::kForward);
+					s->lights.Set(Relay::kForward);
 					Wait(0.2);
-					g_lights->Set(Relay::kOff);
+					s->lights.Set(Relay::kOff);
 					Wait(0.1);
 				}
 			}
@@ -871,8 +589,8 @@ public:
 		
 		Sparky *s = (Sparky*)argPtr;
 		
-		targetAlignment ta = g_targetAlign;
-		double d = g_targetDistance;
+		targetAlignment ta = s->targeting.getTargetAlign();
+		double d = s->targeting.getTargetDistance();
 		
 		while(ta != TARGET_CENTER)
 		{
@@ -889,12 +607,12 @@ public:
 				break;
 			}
 			Wait(0.1);
-			ta = g_targetAlign;
-			d = g_targetDistance;
+			ta = s->targeting.getTargetAlign();
+			d = s->targeting.getTargetDistance();
 		}
 
 		s->sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
-		g_autoAimSet = false;
+		s->autoAimSet = false;
 		printf("AutoAim: done\n");
 		return 0;
 	}
