@@ -1,4 +1,0 @@
-set ff=dos
-set autoindent
-set textwidth=80
-syntax on
