@@ -33,7 +33,6 @@ static bool g_autoAimSet;
 static double g_targetDistance;
 typedef enum {TARGET_LEFT, TARGET_RIGHT, TARGET_CENTER, TARGET_NONE} targetAlignment;
 static targetAlignment g_targetAlign;
-static RobotDrive *g_sparky;
  
 /**
  * Sparky class.  Describes the 2012 FRC robot.
@@ -101,7 +100,6 @@ public:
 		g_autoAimSet = false;
 		g_targetDistance = 0;
 		g_targetAlign = TARGET_NONE;
-		g_sparky = &sparky;
 		tension.Reset();
 		tension.Start();
 		sparky.SetExpiration(0.1);
@@ -249,7 +247,7 @@ public:
 				else if(stick1.GetRawButton(8) && !ds->GetDigitalIn(5))
 				{
 					g_autoAimSet = true;
-					autoAim.Start();
+					autoAim.Start((UINT32)(this));
 				}
 				else
 				{
@@ -896,10 +894,12 @@ public:
 		return 0;
 	}
 	
-	static int AutoAim(void)
+	static int AutoAim(UINT32 argPtr)
 	{
 		Synchronized sync(autoAimSem);
 		printf("AutoAim: start\n");
+		
+		Sparky *s = (Sparky*)argPtr;
 		
 		targetAlignment ta = g_targetAlign;
 		double d = g_targetDistance;
@@ -908,11 +908,11 @@ public:
 		{
 			if(ta == TARGET_RIGHT)
 			{
-				g_sparky->TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
+				s->sparky.TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
 			}
 			else if(ta == TARGET_LEFT)
 			{
-				g_sparky->TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
+				s->sparky.TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
 			}
 			else if(ta == TARGET_NONE)
 			{
@@ -923,7 +923,7 @@ public:
 			d = g_targetDistance;
 		}
 
-		g_sparky->TankDrive(MOTOR_OFF, MOTOR_OFF);
+		s->sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
 		g_autoAimSet = false;
 		printf("AutoAim: done\n");
 		return 0;
