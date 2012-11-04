@@ -15,15 +15,13 @@ Sparky::Sparky(void):
 	targetingTask("targeting", (FUNCPTR)Targeting::VisionTracking, 102),
 	blinkyLightsTask("blinkyLights", (FUNCPTR)BlinkyLights, 103),
 	autoAimTask("autoAim", (FUNCPTR)AutoAim),
-	bridgeArmUp(3),
-	bridgeArmDown(4),
 	ds(DriverStation::GetInstance()),
 	dsLCD(DriverStationLCD::GetInstance()),
-	bridgeArm(7),
 	lights(4),
 	targeting(),
 	loader(),
-	shooter(this)
+	shooter(this),
+	bridgeArm()
 {
 	printf("Sparky: start\n");
 	autoAimSet = false;
@@ -120,8 +118,6 @@ void Sparky::OperatorControl(void)
 	Notifier armToPositionNotifier(Shooter::ArmToPositionNotifier, this);
 	Notifier releaseNotifier(Shooter::ReleaseNotifier, this);
 	Timer armTimer;
-	bool armUp = false;
-	bool armDown = false;
 	int lastPosition = 0;
 	drive.SetSafetyEnabled(false);
 	shooter.setArmSet(false);
@@ -167,45 +163,45 @@ void Sparky::OperatorControl(void)
 		// bridge arm
 		if(stick1.GetRawButton(6))
 		{
-			if(!bridgeArmDown.Get())
+			if(!bridgeArm.getBridgeArmDown())
 			{
-				armDown = true;
+				bridgeArm.setArmDown(true);
 			}
-			if(armUp && !bridgeArmUp.Get())
+			if(bridgeArm.isArmUp() && !bridgeArm.getBridgeArmUp())
 			{
-				armUp = false;
+				bridgeArm.setArmUp(false);
 			}
-			if(!armDown || ds->GetDigitalIn(6))
+			if(!bridgeArm.isArmDown() || ds->GetDigitalIn(6))
 			{
-				bridgeArm.Set(BRIDGE_ARM_UP);
+				bridgeArm.up();
 			}
 			else
 			{
-				bridgeArm.Set(BRIDGE_ARM_OFF);
+				bridgeArm.off();
 			}
 		}
 		else if(stick1.GetRawButton(7))
 		{
-			if(!bridgeArmUp.Get())
+			if(!bridgeArm.getBridgeArmUp())
 			{
-				armUp = true;
+				bridgeArm.setArmUp(true);
 			}
-			if(armDown && !bridgeArmDown.Get())
+			if(bridgeArm.isArmDown() && !bridgeArm.getBridgeArmDown())
 			{
-				armDown = false;
+				bridgeArm.setArmDown(false);
 			}
-			if(!armUp || ds->GetDigitalIn(6))
+			if(!bridgeArm.isArmUp() || ds->GetDigitalIn(6))
 			{
-				bridgeArm.Set(BRIDGE_ARM_DOWN);
+				bridgeArm.down();
 			}
 			else
 			{
-				bridgeArm.Set(BRIDGE_ARM_OFF);
+				bridgeArm.off();
 			}
 		}
 		else
 		{
-			bridgeArm.Set(BRIDGE_ARM_OFF);
+			bridgeArm.off();
 		}
 		
 		// shooter arm
@@ -327,11 +323,6 @@ void Sparky::OperatorControl(void)
 	armToPositionNotifier.Stop();
 	releaseNotifier.Stop();
 	printf("OperatorControl: stop\n");
-}
-
-Victor* Sparky::GetBridgeArm()
-{
-	return &bridgeArm;
 }
 
 Relay* Sparky::GetLights()

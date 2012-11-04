@@ -9,11 +9,10 @@
 #include "Targeting.h"
 #include "Loader.h"
 #include "Shooter.h"
+#include "BridgeArm.h"
 
 // constants
-static const double BRIDGE_ARM_DOWN = 0.9;
-static const double BRIDGE_ARM_UP = -0.9;
-static const double BRIDGE_ARM_OFF = 0.0;
+
 static const double AUTO_AIM_SPEED = 0.2;
 
 class Sparky : public SimpleRobot
@@ -22,14 +21,13 @@ private:
 	RobotDrive drive;
 	Joystick stick1, stick2, stick3;
 	Task targetingTask, blinkyLightsTask, autoAimTask;
-	DigitalInput bridgeArmUp, bridgeArmDown;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
-	Victor bridgeArm;
 	Relay lights;
 	Targeting targeting;
 	Loader loader;
 	Shooter shooter;
+	BridgeArm bridgeArm;
 	bool autoAimSet;
 	static SEM_ID autoAimSem;
 public:
@@ -38,7 +36,6 @@ public:
 	void RobotInit();
 	void Autonomous(void);
 	void OperatorControl(void);
-	Victor* GetBridgeArm();
 	Relay* GetLights();
 	Loader* GetLoader();
 	Shooter* GetShooter();
