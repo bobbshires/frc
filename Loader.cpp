@@ -6,13 +6,13 @@ Loader::Loader():
 	intakeOff = false;
 }
 
-void Loader::load(Timer& armTimer, Encoder& tension)
+void Loader::load(Timer& armTimer, int tension)
 {
 	if(shooter.Get() && top.Get() && middle.Get())
 	{
 		floorPickup.Set(INTAKE_OFF);
 	}
-	else if(top.Get() && middle.Get() && tension.Get() > ARM_ZERO_THRESH)
+	else if(top.Get() && middle.Get() && tension > ARM_ZERO_THRESH)
 	{
 		floorPickup.Set(INTAKE_OFF);
 	}
@@ -20,7 +20,7 @@ void Loader::load(Timer& armTimer, Encoder& tension)
 	{
 		floorPickup.Set(INTAKE_LOAD);
 	}
-	if(!shooter.Get() && tension.Get() < ARM_ZERO_THRESH && armTimer.Get() > 1.0)
+	if(!shooter.Get() && tension < ARM_ZERO_THRESH && armTimer.Get() > 1.0)
 	{
 		shooterLoader.Set(INTAKE_LOAD);
 	}
@@ -37,6 +37,11 @@ void Loader::load(Timer& armTimer, Encoder& tension)
 	{
 		shooterLoader.Set(INTAKE_OFF);
 	}
+}
+
+void Loader::load()
+{
+	shooterLoader.Set(INTAKE_LOAD);
 }
 
 void Loader::unload()

@@ -19,7 +19,8 @@ public:
 	UINT32 getTop();
 	UINT32 getMiddle();
 	UINT32 getShooter();
-	void load(Timer& armTimer, Encoder& tension);
+	void load(Timer& armTimer, int tension);
+	void load();
 	void unload();
 	void stop();
 	bool isIntakeOff();

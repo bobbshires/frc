@@ -8,30 +8,46 @@
 #include "math.h"
 #include "Targeting.h"
 #include "Loader.h"
-
-// encoder
-static SEM_ID armSem;
-static int encPos;
-static bool armSet;
-static double armSpeed;
-
-// trigger release
-static SEM_ID releaseSem;
-static bool releaseSet;
+#include "Shooter.h"
 
 // constants
-static const double MOTOR_OFF = 0.0;
-static const double TENSION_BRAKE = -0.06;
-static const double ARM_SPEED_COARSE = 0.5;
-static const double ARM_SPEED_COARSE_LOAD = -0.5;
-static const double ARM_SPEED_COARSE_UNLOAD = 0.5;
-static const double ARM_SPEED_FINE_LOAD = -0.3;
-static const double ARM_SPEED_FINE_UNLOAD = 0.2;
-static const double ARM_SPEED_FULL_LOAD = -1.0;
-static const double ARM_SPEED_FULL_UNLOAD = 1.0;
 static const double BRIDGE_ARM_DOWN = 0.9;
 static const double BRIDGE_ARM_UP = -0.9;
 static const double BRIDGE_ARM_OFF = 0.0;
 static const double AUTO_AIM_SPEED = 0.2;
+
+class Sparky : public SimpleRobot
+{
+private:
+	RobotDrive sparky;
+	Joystick stick1, stick2, stick3;
+	Task targetingTask, blinkyLightsTask, autoAimTask;
+	DigitalInput bridgeArmUp, bridgeArmDown;
+	DriverStation *ds;
+	DriverStationLCD *dsLCD;
+	Victor bridgeArm;
+	Relay lights;
+	Targeting targeting;
+	Loader loader;
+	Shooter shooter;
+	bool autoAimSet;
+	static SEM_ID autoAimSem;
+public:
+	Sparky(void);
+	void Disabled();
+	void RobotInit();
+	void Autonomous(void);
+	void OperatorControl(void);
+	void ArmToPosition(int p);
+	void ArmToPositionNoEye(int p);
+	void ArmToPositionFull(int p);
+	Victor* GetBridgeArm();
+	Relay* GetLights();
+	Loader* GetLoader();
+	Shooter* GetShooter();
+	int GetTension();
+	static int BlinkyLights(UINT32 argPtr);	
+	static int AutoAim(UINT32 argPtr);
+};
 
 #endif
