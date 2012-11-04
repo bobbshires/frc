@@ -13,15 +13,15 @@ Sparky::Sparky(void):
 	stick2(2),
 	stick3(3),
 	targetingTask("targeting", (FUNCPTR)Targeting::VisionTracking, 102),
-	blinkyLightsTask("blinkyLights", (FUNCPTR)BlinkyLights, 103),
+	blinkyLightsTask("blinkyLights", (FUNCPTR)Lights::BlinkyLights, 103),
 	autoAimTask("autoAim", (FUNCPTR)Shooter::AutoAim),
 	ds(DriverStation::GetInstance()),
 	dsLCD(DriverStationLCD::GetInstance()),
-	lights(4),
 	targeting(),
 	loader(),
 	shooter(this),
-	bridgeArm()
+	bridgeArm(),
+	lights()
 {
 	printf("Sparky: start\n");
 	drive.SetExpiration(0.1);
@@ -324,11 +324,6 @@ void Sparky::OperatorControl(void)
 	printf("OperatorControl: stop\n");
 }
 
-Relay* Sparky::GetLights()
-{
-	return &lights;
-}
-
 Loader* Sparky::GetLoader()
 {
 	return &loader;
@@ -354,45 +349,9 @@ Targeting* Sparky::GetTargeting()
 	return &targeting;
 }
 
-int Sparky::BlinkyLights(UINT32 argPtr)
+Lights* Sparky::GetLights()
 {
-	printf("BlinkyLights: start\n");
-	Sparky *s = (Sparky*)argPtr;
-	while(true)
-	{
-		if(s->loader.getShooter() && s->loader.getTop() && s->loader.getMiddle())
-		{
-			s->lights.Set(Relay::kForward);
-		}
-		else
-		{
-			if(s->loader.getShooter())
-			{
-				s->lights.Set(Relay::kForward);
-				Wait(0.2);
-				s->lights.Set(Relay::kOff);
-				Wait(0.1);
-			}
-			if(s->loader.getMiddle())
-			{
-				s->lights.Set(Relay::kForward);
-				Wait(0.2);
-				s->lights.Set(Relay::kOff);
-				Wait(0.1);
-			}
-			if(s->loader.getTop())
-			{
-				s->lights.Set(Relay::kForward);
-				Wait(0.2);
-				s->lights.Set(Relay::kOff);
-				Wait(0.1);
-			}
-		}
-		//printf("Blinking!\n");
-		Wait(1.0);
-	}
-	printf("BlinkyLights: done\n");
-	return 0;
+	return &lights;
 }
 
 START_ROBOT_CLASS(Sparky);

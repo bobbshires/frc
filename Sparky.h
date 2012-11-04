@@ -10,6 +10,7 @@
 #include "Loader.h"
 #include "Shooter.h"
 #include "BridgeArm.h"
+#include "Lights.h"
 
 class Sparky : public SimpleRobot
 {
@@ -19,24 +20,23 @@ private:
 	Task targetingTask, blinkyLightsTask, autoAimTask;
 	DriverStation *ds;
 	DriverStationLCD *dsLCD;
-	Relay lights;
 	Targeting targeting;
 	Loader loader;
 	Shooter shooter;
 	BridgeArm bridgeArm;
+	Lights lights;
 public:
 	Sparky(void);
 	void Disabled();
 	void RobotInit();
 	void Autonomous(void);
 	void OperatorControl(void);
-	Relay* GetLights();
 	Loader* GetLoader();
 	Shooter* GetShooter();
 	RobotDrive* GetDrive();
 	Targeting* GetTargeting();
+	Lights* GetLights();
 	int GetTension();
-	static int BlinkyLights(UINT32 argPtr);	
 };
 
 #endif
