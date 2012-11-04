@@ -8,7 +8,7 @@
  * Sparky class.  Describes the 2012 FRC robot.
  */
 Sparky::Sparky(void):
-	sparky(3, 2),
+	drive(3, 2),
 	stick1(1),
 	stick2(2),
 	stick3(3),
@@ -27,10 +27,10 @@ Sparky::Sparky(void):
 {
 	printf("Sparky: start\n");
 	autoAimSet = false;
-	sparky.SetExpiration(0.1);
-	sparky.SetSafetyEnabled(false);
-	sparky.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
-	sparky.SetInvertedMotor(RobotDrive::kRearLeftMotor, true);
+	drive.SetExpiration(0.1);
+	drive.SetSafetyEnabled(false);
+	drive.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
+	drive.SetInvertedMotor(RobotDrive::kRearLeftMotor, true);
 	printf("Sparky: done\n");
 }
 	
@@ -59,7 +59,7 @@ void Sparky::RobotInit()
 void Sparky::Autonomous(void)
 {
 	printf("Autonomous: start\n");
-	sparky.SetSafetyEnabled(false);
+	drive.SetSafetyEnabled(false);
 	/*
 	if(targeting.IsSuspended())
 		targetingTask.Resume();
@@ -90,13 +90,13 @@ void Sparky::Autonomous(void)
 		
 		int p = 190;
 		
-		ArmToPosition(p);
+		shooter.ArmToPosition(p, this);
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", shooter.getTension());
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d",
 				loader.getShooter(), loader.getTop(), loader.getMiddle());
 		dsLCD->UpdateLCD();
 		shooter.ReleaseNotifier(this);
-		ArmToPositionNoEye(p);
+		shooter.ArmToPositionNoEye(p, this);
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", shooter.getTension());
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d",
 				loader.getShooter(), loader.getTop(), loader.getMiddle());
@@ -123,7 +123,7 @@ void Sparky::OperatorControl(void)
 	bool armUp = false;
 	bool armDown = false;
 	int lastPosition = 0;
-	sparky.SetSafetyEnabled(false);
+	drive.SetSafetyEnabled(false);
 	shooter.setArmSet(false);
 	shooter.setReleaseSet(false);
 	loader.setIntakeOff(false);
@@ -147,11 +147,11 @@ void Sparky::OperatorControl(void)
 		{
 			if(stick1.GetTrigger() && !stick2.GetTrigger())
 			{
-				sparky.ArcadeDrive(stick1);
+				drive.ArcadeDrive(stick1);
 			}
 			else if(stick1.GetTrigger() && stick2.GetTrigger())
 			{
-				sparky.TankDrive(stick2, stick1);
+				drive.TankDrive(stick2, stick1);
 			}
 			else if(stick1.GetRawButton(8) && !ds->GetDigitalIn(5))
 			{
@@ -160,7 +160,7 @@ void Sparky::OperatorControl(void)
 			}
 			else
 			{
-				sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+				drive.TankDrive(MOTOR_OFF, MOTOR_OFF);
 			}
 		}
 		
@@ -329,69 +329,10 @@ void Sparky::OperatorControl(void)
 	printf("OperatorControl: stop\n");
 }
 
-void Sparky::ArmToPosition(int p)
-{
-	if(shooter.getTension() < p && loader.getShooter())
-	{
-		while(shooter.getTension() < p && this->IsEnabled())
-		{
-			shooter.load(ARM_SPEED_COARSE_LOAD);
-			sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
-		}
-	}
-	else if(shooter.getTension() > p)
-	{
-		while(shooter.getTension() > p && this->IsEnabled())
-		{
-			shooter.load(ARM_SPEED_COARSE_UNLOAD);
-			sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
-		}
-	}
-	shooter.load(TENSION_BRAKE);
-}
 
-void Sparky::ArmToPositionNoEye(int p)
-{
-	if(shooter.getTension() < p)
-	{
-		while(shooter.getTension() < p && this->IsEnabled())
-		{
-			shooter.load(ARM_SPEED_COARSE_LOAD);
-			sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
-		}
-	}
-	else if(shooter.getTension() > p)
-	{
-		while(shooter.getTension() > p && this->IsEnabled())
-		{
-			shooter.load(ARM_SPEED_COARSE_UNLOAD);
-			sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
-		}
-	}
-	shooter.load(TENSION_BRAKE);
-}
 
-void Sparky::ArmToPositionFull(int p)
-{
-	if(shooter.getTension() < p && loader.getShooter())
-	{
-		while(shooter.getTension() < p && this->IsEnabled())
-		{
-			shooter.load(ARM_SPEED_FULL_LOAD);
-			Wait(0.005);
-		}
-	}
-	else if(shooter.getTension() > p)
-	{
-		while(shooter.getTension() > p && this->IsEnabled())
-		{
-			shooter.load(ARM_SPEED_FULL_UNLOAD);
-			Wait(0.005);
 
-		}
-	}
-	shooter.load(TENSION_BRAKE);
-}
+
 
 Victor* Sparky::GetBridgeArm()
 {
@@ -411,6 +352,11 @@ Loader* Sparky::GetLoader()
 Shooter* Sparky::GetShooter()
 {
 	return &shooter;
+}
+
+RobotDrive* Sparky::GetDrive()
+{
+	return &drive;
 }
 
 int Sparky::GetTension()
@@ -473,11 +419,11 @@ int Sparky::AutoAim(UINT32 argPtr)
 	{
 		if(ta == TARGET_RIGHT)
 		{
-			s->sparky.TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
+			s->drive.TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
 		}
 		else if(ta == TARGET_LEFT)
 		{
-			s->sparky.TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
+			s->drive.TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
 		}
 		else if(ta == TARGET_NONE)
 		{
@@ -488,7 +434,7 @@ int Sparky::AutoAim(UINT32 argPtr)
 		d = s->targeting.getTargetDistance();
 	}
 
-	s->sparky.TankDrive(MOTOR_OFF, MOTOR_OFF);
+	s->drive.TankDrive(MOTOR_OFF, MOTOR_OFF);
 	s->autoAimSet = false;
 	printf("AutoAim: done\n");
 	return 0;

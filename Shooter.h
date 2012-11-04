@@ -2,6 +2,7 @@
 #define SHOOTER_H
 
 #include "WPILib.h"
+#include "Loader.h"
 
 static const double MOTOR_OFF = 0.0;
 static const double TENSION_BRAKE = -0.06;
@@ -43,7 +44,9 @@ public:
 	static void ArmToPositionNotifier(void* p);
 	void setRelease(Relay::Value v);
 	int getTrigger();
-	
+	void ArmToPosition(int p, void* s);
+	void ArmToPositionNoEye(int p, void* s);
+	void ArmToPositionFull(int p, void* s);
 };
 
 #endif

@@ -29,7 +29,7 @@ void Shooter::ReleaseNotifier(void* p)
 		releaseSet = false;
 		l->setIntakeOff(true);
 		armSet = true;
-		s->ArmToPositionFull(0);
+		sh->ArmToPositionFull(0, s);
 		while(s->GetTension() > ARM_ZERO_THRESH && s->IsEnabled())
 		{
 			Wait(0.1);
@@ -41,7 +41,7 @@ void Shooter::ReleaseNotifier(void* p)
 		}
 		Wait(1.0);
 		l->stop();
-		s->ArmToPosition(125);
+		sh->ArmToPosition(125, (void*)s);
 		l->setIntakeOff(false);
 		armSet = false;
 		printf("ReleaseNotifier: done\n");
@@ -139,4 +139,75 @@ void Shooter::ArmToPositionNotifier(void* p)
 		sh->load(TENSION_BRAKE);
 		sh->setArmSet(false);
 	}
+}
+
+void Shooter::ArmToPosition(int p, void* s)
+{
+	Sparky* sp = (Sparky*)s;
+	Loader* loader = sp->GetLoader();
+	RobotDrive* drive = sp->GetDrive();
+	if(tension.Get() < p && loader->getShooter())
+	{
+		while(getTension() < p && sp->IsEnabled())
+		{
+			load(ARM_SPEED_COARSE_LOAD);
+			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
+		}
+	}
+	else if(getTension() > p)
+	{
+		while(getTension() > p && sp->IsEnabled())
+		{
+			load(ARM_SPEED_COARSE_UNLOAD);
+			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
+		}
+	}
+	load(TENSION_BRAKE);
+}
+
+void Shooter::ArmToPositionNoEye(int p, void* s)
+{
+	Sparky* sp = (Sparky*)s;
+	RobotDrive* drive = sp->GetDrive();
+	if(getTension() < p)
+	{
+		while(getTension() < p && sp->IsEnabled())
+		{
+			load(ARM_SPEED_COARSE_LOAD);
+			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
+		}
+	}
+	else if(getTension() > p)
+	{
+		while(getTension() > p && sp->IsEnabled())
+		{
+			load(ARM_SPEED_COARSE_UNLOAD);
+			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
+		}
+	}
+	load(TENSION_BRAKE);
+}
+
+void Shooter::ArmToPositionFull(int p, void* s)
+{
+	Sparky* sp = (Sparky*)s;
+	Loader* loader = sp->GetLoader();
+	if(getTension() < p && loader->getShooter())
+	{
+		while(getTension() < p && sp->IsEnabled())
+		{
+			load(ARM_SPEED_FULL_LOAD);
+			Wait(0.005);
+		}
+	}
+	else if(getTension() > p)
+	{
+		while(getTension() > p && sp->IsEnabled())
+		{
+			load(ARM_SPEED_FULL_UNLOAD);
+			Wait(0.005);
+
+		}
+	}
+	load(TENSION_BRAKE);
 }

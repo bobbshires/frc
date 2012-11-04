@@ -19,7 +19,7 @@ static const double AUTO_AIM_SPEED = 0.2;
 class Sparky : public SimpleRobot
 {
 private:
-	RobotDrive sparky;
+	RobotDrive drive;
 	Joystick stick1, stick2, stick3;
 	Task targetingTask, blinkyLightsTask, autoAimTask;
 	DigitalInput bridgeArmUp, bridgeArmDown;
@@ -38,16 +38,15 @@ public:
 	void RobotInit();
 	void Autonomous(void);
 	void OperatorControl(void);
-	void ArmToPosition(int p);
-	void ArmToPositionNoEye(int p);
-	void ArmToPositionFull(int p);
 	Victor* GetBridgeArm();
 	Relay* GetLights();
 	Loader* GetLoader();
 	Shooter* GetShooter();
+	RobotDrive* GetDrive();
 	int GetTension();
 	static int BlinkyLights(UINT32 argPtr);	
 	static int AutoAim(UINT32 argPtr);
 };
+
 
 #endif
