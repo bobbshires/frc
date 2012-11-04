@@ -14,6 +14,8 @@ static const double ARM_SPEED_FINE_UNLOAD = 0.2;
 static const double ARM_SPEED_FULL_LOAD = -1.0;
 static const double ARM_SPEED_FULL_UNLOAD = 1.0;
 
+class Sparky;
+
 class Shooter
 {
 private:
@@ -27,11 +29,11 @@ private:
 	static bool releaseSet;
 	static SEM_ID armSem;
 	static SEM_ID releaseSem;
+	static Sparky *sparky;
 public:
-	Shooter();
+	Shooter(Sparky* s);
 	void setArmSet(bool b);
 	bool isArmSet();
-	static void ReleaseNotifier(void* p);
 	int getEncPos();
 	void setEncPos(int i);
 	double getArmSpeed();
@@ -41,12 +43,13 @@ public:
 	int getTension();
 	void zero();
 	void load(double s);
+	static void ReleaseNotifier(void* p);
 	static void ArmToPositionNotifier(void* p);
 	void setRelease(Relay::Value v);
 	int getTrigger();
-	void ArmToPosition(int p, void* s);
-	void ArmToPositionNoEye(int p, void* s);
-	void ArmToPositionFull(int p, void* s);
+	void ArmToPosition(int p);
+	void ArmToPositionNoEye(int p);
+	void ArmToPositionFull(int p);
 };
 
 #endif

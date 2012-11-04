@@ -48,5 +48,4 @@ public:
 	static int AutoAim(UINT32 argPtr);
 };
 
-
 #endif

@@ -1,9 +1,10 @@
 #include "Shooter.h"
 #include "Sparky.h"
 
-Shooter::Shooter():
+Shooter::Shooter(Sparky* s):
 	tension(1, 2), shooter(12), trigger(11), release(6), arm(1)
 {
+	sparky = s;
 	armSet = false;
 	setEncPos(0);
 	zero();
@@ -15,7 +16,7 @@ void Shooter::ReleaseNotifier(void* p)
 	printf("ReleaseNotifier: start\n");
 	Sparky *s = (Sparky *)p;
 	Loader *l = s->GetLoader();
-	Shooter *sh = s->GetShooter();
+	Shooter* sh = s->GetShooter();
 	{
 		Synchronized sync(releaseSem);
 		while(sh->getTrigger() && s->IsEnabled())
@@ -29,7 +30,7 @@ void Shooter::ReleaseNotifier(void* p)
 		releaseSet = false;
 		l->setIntakeOff(true);
 		armSet = true;
-		sh->ArmToPositionFull(0, s);
+		sh->ArmToPositionFull(0);
 		while(s->GetTension() > ARM_ZERO_THRESH && s->IsEnabled())
 		{
 			Wait(0.1);
@@ -41,7 +42,7 @@ void Shooter::ReleaseNotifier(void* p)
 		}
 		Wait(1.0);
 		l->stop();
-		sh->ArmToPosition(125, (void*)s);
+		sh->ArmToPosition(125);
 		l->setIntakeOff(false);
 		armSet = false;
 		printf("ReleaseNotifier: done\n");
@@ -141,14 +142,13 @@ void Shooter::ArmToPositionNotifier(void* p)
 	}
 }
 
-void Shooter::ArmToPosition(int p, void* s)
+void Shooter::ArmToPosition(int p)
 {
-	Sparky* sp = (Sparky*)s;
-	Loader* loader = sp->GetLoader();
-	RobotDrive* drive = sp->GetDrive();
+	Loader* loader = sparky->GetLoader();
+	RobotDrive* drive = sparky->GetDrive();
 	if(tension.Get() < p && loader->getShooter())
 	{
-		while(getTension() < p && sp->IsEnabled())
+		while(getTension() < p && sparky->IsEnabled())
 		{
 			load(ARM_SPEED_COARSE_LOAD);
 			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -156,7 +156,7 @@ void Shooter::ArmToPosition(int p, void* s)
 	}
 	else if(getTension() > p)
 	{
-		while(getTension() > p && sp->IsEnabled())
+		while(getTension() > p && sparky->IsEnabled())
 		{
 			load(ARM_SPEED_COARSE_UNLOAD);
 			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -165,13 +165,12 @@ void Shooter::ArmToPosition(int p, void* s)
 	load(TENSION_BRAKE);
 }
 
-void Shooter::ArmToPositionNoEye(int p, void* s)
+void Shooter::ArmToPositionNoEye(int p)
 {
-	Sparky* sp = (Sparky*)s;
-	RobotDrive* drive = sp->GetDrive();
+	RobotDrive* drive = sparky->GetDrive();
 	if(getTension() < p)
 	{
-		while(getTension() < p && sp->IsEnabled())
+		while(getTension() < p && sparky->IsEnabled())
 		{
 			load(ARM_SPEED_COARSE_LOAD);
 			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -179,7 +178,7 @@ void Shooter::ArmToPositionNoEye(int p, void* s)
 	}
 	else if(getTension() > p)
 	{
-		while(getTension() > p && sp->IsEnabled())
+		while(getTension() > p && sparky->IsEnabled())
 		{
 			load(ARM_SPEED_COARSE_UNLOAD);
 			drive->TankDrive(MOTOR_OFF, MOTOR_OFF);
@@ -188,13 +187,12 @@ void Shooter::ArmToPositionNoEye(int p, void* s)
 	load(TENSION_BRAKE);
 }
 
-void Shooter::ArmToPositionFull(int p, void* s)
+void Shooter::ArmToPositionFull(int p)
 {
-	Sparky* sp = (Sparky*)s;
-	Loader* loader = sp->GetLoader();
+	Loader* loader = sparky->GetLoader();
 	if(getTension() < p && loader->getShooter())
 	{
-		while(getTension() < p && sp->IsEnabled())
+		while(getTension() < p && sparky->IsEnabled())
 		{
 			load(ARM_SPEED_FULL_LOAD);
 			Wait(0.005);
@@ -202,7 +200,7 @@ void Shooter::ArmToPositionFull(int p, void* s)
 	}
 	else if(getTension() > p)
 	{
-		while(getTension() > p && sp->IsEnabled())
+		while(getTension() > p && sparky->IsEnabled())
 		{
 			load(ARM_SPEED_FULL_UNLOAD);
 			Wait(0.005);

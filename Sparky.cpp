@@ -23,7 +23,7 @@ Sparky::Sparky(void):
 	lights(4),
 	targeting(),
 	loader(),
-	shooter()
+	shooter(this)
 {
 	printf("Sparky: start\n");
 	autoAimSet = false;
@@ -90,13 +90,13 @@ void Sparky::Autonomous(void)
 		
 		int p = 190;
 		
-		shooter.ArmToPosition(p, this);
+		shooter.ArmToPosition(p);
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", shooter.getTension());
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d",
 				loader.getShooter(), loader.getTop(), loader.getMiddle());
 		dsLCD->UpdateLCD();
 		shooter.ReleaseNotifier(this);
-		shooter.ArmToPositionNoEye(p, this);
+		shooter.ArmToPositionNoEye(p);
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "encoder: %d", shooter.getTension());
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "s: %d, t: %d, m: %d",
 				loader.getShooter(), loader.getTop(), loader.getMiddle());
@@ -315,8 +315,8 @@ void Sparky::OperatorControl(void)
 		
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line3, "encoder: %d", shooter.getTension());
 		dsLCD->PrintfLine(DriverStationLCD::kUser_Line4, "shooter: %d", loader.getShooter());
-		dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "top: %d", loader.getTop());
-		dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "middle: %d", loader.getMiddle());
+		dsLCD->PrintfLine(DriverStationLCD::kUser_Line5, "top:     %d", loader.getTop());
+		dsLCD->PrintfLine(DriverStationLCD::kUser_Line6, "middle:  %d", loader.getMiddle());
 		dsLCD->UpdateLCD();
 		
 		Wait(0.005); // wait for a motor update time
@@ -328,11 +328,6 @@ void Sparky::OperatorControl(void)
 	releaseNotifier.Stop();
 	printf("OperatorControl: stop\n");
 }
-
-
-
-
-
 
 Victor* Sparky::GetBridgeArm()
 {
