@@ -14,7 +14,7 @@ Sparky::Sparky(void):
 	stick3(3),
 	targetingTask("targeting", (FUNCPTR)Targeting::VisionTracking, 102),
 	blinkyLightsTask("blinkyLights", (FUNCPTR)BlinkyLights, 103),
-	autoAimTask("autoAim", (FUNCPTR)AutoAim),
+	autoAimTask("autoAim", (FUNCPTR)Shooter::AutoAim),
 	ds(DriverStation::GetInstance()),
 	dsLCD(DriverStationLCD::GetInstance()),
 	lights(4),
@@ -24,7 +24,6 @@ Sparky::Sparky(void):
 	bridgeArm()
 {
 	printf("Sparky: start\n");
-	autoAimSet = false;
 	drive.SetExpiration(0.1);
 	drive.SetSafetyEnabled(false);
 	drive.SetInvertedMotor(RobotDrive::kRearRightMotor, true);
@@ -139,7 +138,7 @@ void Sparky::OperatorControl(void)
 	while (IsOperatorControl() && IsEnabled())
 	{
 		// drive
-		if(!autoAimSet)
+		if(!shooter.getAutoAimSet())
 		{
 			if(stick1.GetTrigger() && !stick2.GetTrigger())
 			{
@@ -151,7 +150,7 @@ void Sparky::OperatorControl(void)
 			}
 			else if(stick1.GetRawButton(8) && !ds->GetDigitalIn(5))
 			{
-				autoAimSet = true;
+				shooter.setAutoAimSet(true);
 				autoAimTask.Start((UINT32)(this));
 			}
 			else
@@ -350,6 +349,11 @@ int Sparky::GetTension()
 	return shooter.getTension();
 }
 
+Targeting* Sparky::GetTargeting()
+{
+	return &targeting;
+}
+
 int Sparky::BlinkyLights(UINT32 argPtr)
 {
 	printf("BlinkyLights: start\n");
@@ -388,41 +392,6 @@ int Sparky::BlinkyLights(UINT32 argPtr)
 		Wait(1.0);
 	}
 	printf("BlinkyLights: done\n");
-	return 0;
-}
-
-int Sparky::AutoAim(UINT32 argPtr)
-{
-	Synchronized sync(autoAimSem);
-	printf("AutoAim: start\n");
-	
-	Sparky *s = (Sparky*)argPtr;
-	
-	targetAlignment ta = s->targeting.getTargetAlign();
-	double d = s->targeting.getTargetDistance();
-	
-	while(ta != TARGET_CENTER)
-	{
-		if(ta == TARGET_RIGHT)
-		{
-			s->drive.TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
-		}
-		else if(ta == TARGET_LEFT)
-		{
-			s->drive.TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
-		}
-		else if(ta == TARGET_NONE)
-		{
-			break;
-		}
-		Wait(0.1);
-		ta = s->targeting.getTargetAlign();
-		d = s->targeting.getTargetDistance();
-	}
-
-	s->drive.TankDrive(MOTOR_OFF, MOTOR_OFF);
-	s->autoAimSet = false;
-	printf("AutoAim: done\n");
 	return 0;
 }
 

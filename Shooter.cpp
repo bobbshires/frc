@@ -1,4 +1,5 @@
 #include "Shooter.h"
+#include "Targeting.h"
 #include "Sparky.h"
 
 Shooter::Shooter(Sparky* s):
@@ -8,6 +9,7 @@ Shooter::Shooter(Sparky* s):
 	armSet = false;
 	setEncPos(0);
 	zero();
+	autoAimSet = false;
 	tension.Start();
 }
 
@@ -208,4 +210,41 @@ void Shooter::ArmToPositionFull(int p)
 		}
 	}
 	load(TENSION_BRAKE);
+}
+
+int Shooter::AutoAim(UINT32 argPtr)
+{
+	Synchronized sync(autoAimSem);
+	printf("AutoAim: start\n");
+	
+	Sparky *s = (Sparky*)argPtr;
+	Targeting *t = s->GetTargeting();
+	RobotDrive *rd = s->GetDrive();
+	
+	targetAlignment ta = t->getTargetAlign();
+	double d = t->getTargetDistance();
+	
+	while(ta != TARGET_CENTER)
+	{
+		if(ta == TARGET_RIGHT)
+		{
+			rd->TankDrive(AUTO_AIM_SPEED, -AUTO_AIM_SPEED);
+		}
+		else if(ta == TARGET_LEFT)
+		{
+			rd->TankDrive(-AUTO_AIM_SPEED, AUTO_AIM_SPEED);
+		}
+		else if(ta == TARGET_NONE)
+		{
+			break;
+		}
+		Wait(0.1);
+		ta = t->getTargetAlign();
+		d = t->getTargetDistance();
+	}
+
+	rd->TankDrive(MOTOR_OFF, MOTOR_OFF);
+	autoAimSet = false;
+	printf("AutoAim: done\n");
+	return 0;
 }

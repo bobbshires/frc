@@ -11,10 +11,6 @@
 #include "Shooter.h"
 #include "BridgeArm.h"
 
-// constants
-
-static const double AUTO_AIM_SPEED = 0.2;
-
 class Sparky : public SimpleRobot
 {
 private:
@@ -28,8 +24,6 @@ private:
 	Loader loader;
 	Shooter shooter;
 	BridgeArm bridgeArm;
-	bool autoAimSet;
-	static SEM_ID autoAimSem;
 public:
 	Sparky(void);
 	void Disabled();
@@ -40,9 +34,9 @@ public:
 	Loader* GetLoader();
 	Shooter* GetShooter();
 	RobotDrive* GetDrive();
+	Targeting* GetTargeting();
 	int GetTension();
 	static int BlinkyLights(UINT32 argPtr);	
-	static int AutoAim(UINT32 argPtr);
 };
 
 #endif

@@ -13,6 +13,7 @@ static const double ARM_SPEED_FINE_LOAD = -0.3;
 static const double ARM_SPEED_FINE_UNLOAD = 0.2;
 static const double ARM_SPEED_FULL_LOAD = -1.0;
 static const double ARM_SPEED_FULL_UNLOAD = 1.0;
+static const double AUTO_AIM_SPEED = 0.2;
 
 class Sparky;
 
@@ -30,6 +31,8 @@ private:
 	static SEM_ID armSem;
 	static SEM_ID releaseSem;
 	static Sparky *sparky;
+	static SEM_ID autoAimSem;
+	static bool autoAimSet;
 public:
 	Shooter(Sparky* s);
 	void setArmSet(bool b);
@@ -50,6 +53,9 @@ public:
 	void ArmToPosition(int p);
 	void ArmToPositionNoEye(int p);
 	void ArmToPositionFull(int p);
+	static int AutoAim(UINT32 argPtr);
+	bool getAutoAimSet() { return autoAimSet; }
+	void setAutoAimSet(bool b) { autoAimSet = b; }
 };
 
 #endif
